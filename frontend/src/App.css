@@ -1,0 +1,102 @@
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: var(--bg-main);
+}
+
+.content-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  padding: 24px;
+  gap: 24px;
+}
+
+.center-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.right-sidebar {
+  width: 320px;
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  transition: width 0.3s ease, opacity 0.3s ease, border-width 0.3s ease;
+}
+
+.right-sidebar.closed {
+  width: 0;
+  border-width: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+/* Page transitions and animations (Direct Cross-Fade & Slide - Apple Tier) */
+@keyframes pageCrossFade {
+  0% {
+    opacity: 0;
+    transform: translateX(48px) scale(0.99);
+    filter: blur(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes itemEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.page-transition {
+  animation: pageCrossFade 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+}
+
+/* Cascade animations for data tables and list items */
+.data-table tbody tr {
+  opacity: 0;
+  animation: itemEntrance 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.data-table tbody tr:nth-child(1) { animation-delay: 0.15s; }
+.data-table tbody tr:nth-child(2) { animation-delay: 0.22s; }
+.data-table tbody tr:nth-child(3) { animation-delay: 0.29s; }
+.data-table tbody tr:nth-child(4) { animation-delay: 0.36s; }
+.data-table tbody tr:nth-child(5) { animation-delay: 0.43s; }
+.data-table tbody tr:nth-child(6) { animation-delay: 0.5s; }
+.data-table tbody tr:nth-child(7) { animation-delay: 0.57s; }
+.data-table tbody tr:nth-child(8) { animation-delay: 0.64s; }
+.data-table tbody tr:nth-child(n+9) { animation: none; opacity: 1; }
