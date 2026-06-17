@@ -11,7 +11,7 @@ import { initialPersonnelData } from './utils/mockData';
 import { personnelData, traceabilityData } from './utils/traceabilityData';
 import './App.css';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = window.location.origin.includes('localhost') ? 'http://localhost:5000/api' : '/api';
 
 function App() {
   const [role, setRole] = useState('admin'); // 'admin' or 'employee'

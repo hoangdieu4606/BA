@@ -5,7 +5,7 @@ import './EmployeeForm.css'; // Reuse form styles
 import { customerData } from '../utils/traceabilityData';
 import GS1QRCode from './GS1QRCode';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = window.location.origin.includes('localhost') ? 'http://localhost:5000/api' : '/api';
 
 const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList }) => {
   const [searchTerm, setSearchTerm] = useState('');

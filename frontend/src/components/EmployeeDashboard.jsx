@@ -3,7 +3,7 @@ import GS1QRCode from './GS1QRCode';
 import './EmployeeDashboard.css';
 import './DepartmentTable.css'; // Reuse existing table and modal styles
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = window.location.origin.includes('localhost') ? 'http://localhost:5000/api' : '/api';
 
 const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
   const [searchQuery, setSearchQuery] = useState('');
