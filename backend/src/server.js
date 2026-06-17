@@ -9,35 +9,19 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// In-memory fallback database state
+const { customers, personnel, traceability } = require('./seed');
+
+// In-memory fallback database state populated with full mock datasets
 let dbFallback = {
-  customers: [
-    { ma_kh: "KH001", ten_kh: "Guangzhou Fruit Import & Export Co., Ltd.", quoc_gia: "Trung Quốc" },
-    { ma_kh: "KH002", ten_kh: "Fresh Trade Co.", quoc_gia: "Trung Quốc" },
-    { ma_kh: "KH003", ten_kh: "Shanghai Xinlian Import Co.", quoc_gia: "Trung Quốc" }
-  ],
-  personnel: [
-    { ma_nv: "NV001", ten_nv: "Nguyễn Văn An", tuoi: 34, suc_khoe: "Tốt", dang_tap_huan: "Có" },
-    { ma_nv: "NV002", ten_nv: "Trần Thị Bình", tuoi: 28, suc_khoe: "Tốt", dang_tap_huan: "Không" }
-  ],
-  traceability: [
-    {
-      "id": "BG-001",
-      "ma_puc": "BG-PUC-0001",
-      "dia_chi_vuon": "Xã Tân Hương, H. Yên Phong, Bắc Giang",
-      "ten_vuon": "Vườn Anh Minh",
-      "ngay_thu_hoach": "2026-06-05",
-      "lan_phun_thuoc_gan_nhat": "2026-05-28",
-      "cach_ly": "Không",
-      "loai": "Nguyên trái đông lạnh",
-      "khoi_luong_lo_hang": 15,
-      "khoi_luong_dong_goi": 14.5,
-      "noi_xuat_khau": "Trung Quốc",
-      "ten_co_so_dong_goi": "Cơ sở Trường Thịnh",
-      "ma_phc": "PHC-123",
-      "ket_qua_kiem_dich": "Đạt"
-    }
-  ]
+  customers: customers || [],
+  personnel: (personnel || []).map(p => ({
+    ma_nv: p.ma_nv,
+    ten_nv: p.ten_nv,
+    tuoi: p.tuoi,
+    suc_khoe: p.suc_khoe,
+    dang_tap_huan: p.dang_tap_huan
+  })),
+  traceability: traceability || []
 };
 
 // Flag to track database health

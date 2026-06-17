@@ -66,6 +66,14 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
               Bảo quản
             </li>
             <li 
+              className={`sub-item ${activeTab === 'lo-hang-cach-ly' ? 'active' : ''}`}
+              onClick={() => setActiveTab('lo-hang-cach-ly')}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              Cách ly
+              <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ef4444' }}></span>
+            </li>
+            <li 
               className={`sub-item ${activeTab === 'lo-hang-loi' ? 'active' : ''}`}
               onClick={() => setActiveTab('lo-hang-loi')}
             >

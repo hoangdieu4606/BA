@@ -7,6 +7,21 @@ import GS1QRCode from './GS1QRCode';
 
 const API_BASE_URL = window.location.origin.includes('localhost') ? 'http://localhost:5000/api' : '/api';
 
+const getShipmentStep = (item) => {
+  if (item.ket_qua_kiem_dich === 'Không đạt') {
+    return { index: 2, label: 'Lô hàng lỗi', color: 'danger' };
+  }
+  const isReceived = !item.cach_ly || !item.loai || item.khoi_luong_lo_hang === null || item.khoi_luong_lo_hang === '';
+  if (isReceived) {
+    return { index: 0, label: 'Tiếp nhận', color: 'warning' };
+  }
+  const isProcessing = item.khoi_luong_dong_goi === null || item.khoi_luong_dong_goi === '' || (item.ket_qua_kiem_dich !== 'Đạt');
+  if (isProcessing) {
+    return { index: 1, label: 'Đang xử lý', color: 'info' };
+  }
+  return { index: 2, label: 'Bảo quản', color: 'success' };
+};
+
 const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -116,6 +131,30 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
               item.khoi_luong_lo_hang !== null && item.khoi_luong_lo_hang !== '' ? item.khoi_luong_lo_hang : 'Chưa rõ',
               item.khoi_luong_dong_goi !== null && item.khoi_luong_dong_goi !== '' ? item.khoi_luong_dong_goi : 'Chưa rõ',
               item.ket_qua_kiem_dich
+            ],
+            original: item
+          })),
+          badgeColor: 'danger'
+        };
+      }
+      case 'lo-hang-cach-ly': {
+        const filtered = traceabilityList.filter(item => 
+          item.cach_ly === 'Có'
+        );
+        return {
+          title: 'Lô hàng đang cách ly',
+          headers: ['Mã lô', 'Mã vùng trồng (PUC)', 'Địa chỉ vườn', 'Tên vườn', 'Ngày thu hoạch', 'Cách ly', 'Loại', 'Khối lượng lô (tấn)', 'Kết quả kiểm dịch'],
+          rows: filtered.map(item => ({
+            displayValues: [
+              item.id,
+              item.ma_puc,
+              item.dia_chi_vuon,
+              item.ten_vuon,
+              item.ngay_thu_hoach,
+              item.cach_ly || 'Có',
+              item.loai || 'đang phân loại',
+              item.khoi_luong_lo_hang !== null && item.khoi_luong_lo_hang !== '' ? item.khoi_luong_lo_hang : 'đang phân loại',
+              item.ket_qua_kiem_dich || 'Chưa kiểm dịch'
             ],
             original: item
           })),
@@ -976,6 +1015,27 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
                 </div>
               ) : (
                 <>
+                  {(() => {
+                    const step = getShipmentStep(selectedRecord);
+                    return (
+                      <div className="shipment-progress-stepper" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', padding: '16px', background: 'var(--bg-body)', borderRadius: '12px', border: '1px solid var(--border-color)', position: 'relative' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative', zIndex: 2 }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: step.index >= 0 ? '#4f46e5' : '#cbd5e1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '700' }}>1</div>
+                          <span style={{ fontSize: '12px', marginTop: '6px', fontWeight: '600', color: step.index >= 0 ? 'var(--text-main)' : 'var(--text-muted)' }}>Tiếp nhận</span>
+                        </div>
+                        <div style={{ flex: 1, height: '2px', backgroundColor: step.index >= 1 ? '#4f46e5' : '#e2e8f0', marginTop: '-18px', zIndex: 1 }}></div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative', zIndex: 2 }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: step.index >= 1 ? '#4f46e5' : '#cbd5e1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '700' }}>2</div>
+                          <span style={{ fontSize: '12px', marginTop: '6px', fontWeight: '600', color: step.index >= 1 ? 'var(--text-main)' : 'var(--text-muted)' }}>Đang xử lý</span>
+                        </div>
+                        <div style={{ flex: 1, height: '2px', backgroundColor: step.index >= 2 ? (step.color === 'danger' ? '#ef4444' : '#10b981') : '#e2e8f0', marginTop: '-18px', zIndex: 1 }}></div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative', zIndex: 2 }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: step.index >= 2 ? (step.color === 'danger' ? '#ef4444' : '#10b981') : '#cbd5e1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '700' }}>3</div>
+                          <span style={{ fontSize: '12px', marginTop: '6px', fontWeight: '600', color: step.index >= 2 ? (step.color === 'danger' ? '#ef4444' : '#10b981') : 'var(--text-muted)' }}>{step.label}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <table className="detail-table">
                     <tbody>
                       <tr>
