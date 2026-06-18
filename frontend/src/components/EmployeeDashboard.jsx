@@ -20,7 +20,7 @@ const getShipmentStep = (item) => {
   return { index: 2, label: 'Bảo quản', color: 'success' };
 };
 
-const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
+const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList, role = 'employee' }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [history, setHistory] = useState([
     { id: 'LH-101', type: 'search', time: 'Hôm nay 22:15', origin: 'Vườn Cái Bè', date: '16/06/2026' }
@@ -58,6 +58,10 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
     const match = traceabilityList.find(item => item.id.toUpperCase() === query || item.ma_puc.toUpperCase() === query);
 
     if (match) {
+      if (role !== 'admin' && role !== 'production') {
+        alert("Bạn không có quyền xem thông tin chi tiết lô hàng này (Chỉ Bộ phận quản lý và Bộ phận sản xuất được quyền xem).");
+        return;
+      }
       // Add to search history if not already present
       addToHistory(match.id, 'search', match.ten_vuon, match.ngay_thu_hoach);
       // Open details modal
@@ -82,6 +86,10 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
   };
 
   const handleCreateClick = () => {
+    if (role !== 'admin' && role !== 'technical') {
+      alert("Bạn không có quyền tạo mới lô hàng (Chỉ Bộ phận quản lý và Bộ phận kỹ thuật được quyền tạo).");
+      return;
+    }
     const randomNum = Math.floor(100 + Math.random() * 900);
     setNewShipment({
       id: `LH-${randomNum}`,
@@ -116,6 +124,10 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
       alert("Vui lòng điền đầy đủ các thông tin bắt buộc (*)");
       return;
     }
+    if (role !== 'admin' && role !== 'technical') {
+      alert("Bạn không có quyền tạo mới lô hàng (Chỉ Bộ phận quản lý và Bộ phận kỹ thuật được quyền tạo).");
+      return;
+    }
     
     const formattedShipment = {
       ...newShipment,
@@ -143,7 +155,11 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
         }
         addToHistory(formattedShipment.id, 'create', formattedShipment.ten_vuon, formattedShipment.ngay_thu_hoach);
         setIsCreatingShipment(false);
-        setSelectedRecord(formattedShipment);
+        if (role === 'admin' || role === 'production') {
+          setSelectedRecord(formattedShipment);
+        } else {
+          alert(`Đã tạo thành công lô hàng ${formattedShipment.id}!`);
+        }
       })
       .catch(err => {
         console.error('Error creating shipment:', err);
@@ -153,7 +169,11 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
         }
         addToHistory(formattedShipment.id, 'create', formattedShipment.ten_vuon, formattedShipment.ngay_thu_hoach);
         setIsCreatingShipment(false);
-        setSelectedRecord(formattedShipment);
+        if (role === 'admin' || role === 'production') {
+          setSelectedRecord(formattedShipment);
+        } else {
+          alert(`Đã tạo thành công lô hàng ${formattedShipment.id}!`);
+        }
       });
   };
 
@@ -268,13 +288,15 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
             📷 Quét mã QR
           </button>
           
-          <button 
-            type="button" 
-            className="employee-create-btn"
-            onClick={handleCreateClick}
-          >
-            + Tạo mới lô hàng
-          </button>
+          {(role === 'admin' || role === 'technical') && (
+            <button 
+              type="button" 
+              className="employee-create-btn"
+              onClick={handleCreateClick}
+            >
+              + Tạo mới lô hàng
+            </button>
+          )}
         </form>
       </div>
 
@@ -335,6 +357,7 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
                           value={editData.ma_puc || ''} 
                           onChange={handleEditChange} 
                           required 
+                          disabled={role !== 'admin' && role !== 'production'}
                         />
                       </div>
                       
@@ -346,6 +369,7 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
                           value={editData.ten_vuon || ''} 
                           onChange={handleEditChange} 
                           required 
+                          disabled={role !== 'admin'}
                         />
                       </div>
                       
@@ -357,6 +381,7 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
                           value={editData.dia_chi_vuon || ''} 
                           onChange={handleEditChange} 
                           required 
+                          disabled={role !== 'admin' && role !== 'production'}
                         />
                       </div>
                       
@@ -368,6 +393,7 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
                           value={editData.ngay_thu_hoach || ''} 
                           onChange={handleEditChange} 
                           required 
+                          disabled={role !== 'admin' && role !== 'technical'}
                         />
                       </div>
                       
@@ -378,6 +404,7 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
                           name="lan_phun_thuoc_gan_nhat" 
                           value={editData.lan_phun_thuoc_gan_nhat || ''} 
                           onChange={handleEditChange} 
+                          disabled={role !== 'admin' && role !== 'technical'}
                         />
                       </div>
                       
@@ -387,6 +414,7 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
                           name="cach_ly" 
                           value={editData.cach_ly || ''} 
                           onChange={handleEditChange}
+                          disabled={role !== 'admin' && role !== 'technical'}
                         >
                           <option value="">Chưa rõ (Đang phân loại)</option>
                           <option value="Có">Có</option>
@@ -400,6 +428,7 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
                           name="loai" 
                           value={editData.loai || ''} 
                           onChange={handleEditChange}
+                          disabled={role !== 'admin' && role !== 'technical'}
                         >
                           <option value="">Chưa rõ (Đang phân loại)</option>
                           <option value="Trái tươi xuất khẩu">Trái tươi xuất khẩu</option>
@@ -418,6 +447,7 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
                           value={editData.khoi_luong_lo_hang !== null && editData.khoi_luong_lo_hang !== undefined ? editData.khoi_luong_lo_hang : ''} 
                           onChange={handleEditChange} 
                           placeholder="VD: 12.5" 
+                          disabled={role !== 'admin' && role !== 'production'}
                         />
                       </div>
                       
@@ -430,6 +460,7 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
                           value={editData.khoi_luong_dong_goi !== null && editData.khoi_luong_dong_goi !== undefined ? editData.khoi_luong_dong_goi : ''} 
                           onChange={handleEditChange} 
                           placeholder="VD: 11.8" 
+                          disabled={role !== 'admin' && role !== 'technical'}
                         />
                       </div>
                       
@@ -441,6 +472,7 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
                           value={editData.noi_xuat_khau || ''} 
                           onChange={handleEditChange} 
                           placeholder="VD: Trung Quốc, Hoa Kỳ" 
+                          disabled={role !== 'admin' && role !== 'technical'}
                         />
                       </div>
                       
@@ -452,6 +484,7 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
                           value={editData.ten_co_so_dong_goi || ''} 
                           onChange={handleEditChange} 
                           placeholder="VD: Cơ sở đóng gói Thanh Bình" 
+                          disabled={role !== 'admin' && role !== 'technical'}
                         />
                       </div>
                       
@@ -463,6 +496,7 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
                           value={editData.ma_phc || ''} 
                           onChange={handleEditChange} 
                           placeholder="VD: VN-PHC-0002" 
+                          disabled={role !== 'admin' && role !== 'technical'}
                         />
                       </div>
                       
@@ -472,6 +506,7 @@ const EmployeeDashboard = ({ traceabilityList = [], setTraceabilityList }) => {
                           name="ket_qua_kiem_dich" 
                           value={editData.ket_qua_kiem_dich || ''} 
                           onChange={handleEditChange}
+                          disabled={role !== 'admin' && role !== 'qaqc'}
                         >
                           <option value="">Chưa có kết quả</option>
                           <option value="Đạt">Đạt</option>

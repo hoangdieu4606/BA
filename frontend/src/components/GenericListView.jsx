@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import './DepartmentTable.css'; // Reuse existing table styles
 import './EmployeeForm.css'; // Reuse form styles
@@ -22,8 +22,151 @@ const getShipmentStep = (item) => {
   return { index: 2, label: 'Bảo quản', color: 'success' };
 };
 
-const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList }) => {
+const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList, role = 'admin' }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [vungTrongList, setVungTrongList] = useState([]);
+  const [customersList, setCustomersList] = useState([]);
+  const [warehousesList, setWarehousesList] = useState([]);
+  const [selectedWarehouse, setSelectedWarehouse] = useState(null);
+  const [warehouseReceipts, setWarehouseReceipts] = useState([]);
+  const [isEditingWarehouse, setIsEditingWarehouse] = useState(false);
+  const [warehouseEditData, setWarehouseEditData] = useState(null);
+
+  const [isCreatingReceipt, setIsCreatingReceipt] = useState(false);
+  const [newReceipt, setNewReceipt] = useState({ ma_phieu: '', id_lo_hang: '', ma_kho: '', ngay_nhap: '', khoi_luong: '', vi_tri_luu_tru: '' });
+  const [editingReceiptId, setEditingReceiptId] = useState(null);
+  const [receiptEditData, setReceiptEditData] = useState(null);
+
+  const handleCreateReceiptClick = () => {
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    setNewReceipt({
+      ma_phieu: `PNK-${randomNum}`,
+      id_lo_hang: '',
+      ma_kho: selectedWarehouse.ma_kho,
+      ngay_nhap: new Date().toISOString().split('T')[0],
+      khoi_luong: '',
+      vi_tri_luu_tru: ''
+    });
+    setIsCreatingReceipt(true);
+  };
+
+  const handleReceiptChange = (e) => {
+    const { name, value } = e.target;
+    setNewReceipt(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleReceiptSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (!newReceipt.ma_phieu || !newReceipt.id_lo_hang || !newReceipt.khoi_luong || !newReceipt.ngay_nhap) {
+      alert("Vui lòng điền đầy đủ các thông tin bắt buộc (*)");
+      return;
+    }
+
+    fetch(`${API_BASE_URL}/receipts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newReceipt)
+    })
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Lỗi khi tạo phiếu nhập kho');
+        }
+        return data;
+      })
+      .then(saved => {
+        setWarehouseReceipts(prev => [...prev, { ...saved, loai_kho_lo_hang: selectedWarehouse.loai_kho, khoi_luong_dong_goi: saved.khoi_luong }]);
+        setIsCreatingReceipt(false);
+        alert("Tạo phiếu nhập kho thành công!");
+      })
+      .catch(err => {
+        alert(err.message);
+      });
+  };
+
+  const handleEditReceiptClick = (receipt) => {
+    setEditingReceiptId(receipt.ma_phieu);
+    setReceiptEditData({ ...receipt });
+  };
+
+  const handleReceiptEditChange = (e) => {
+    const { name, value } = e.target;
+    setReceiptEditData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleReceiptEditSubmit = (e) => {
+    if (e) e.preventDefault();
+    fetch(`${API_BASE_URL}/receipts/${receiptEditData.ma_phieu}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(receiptEditData)
+    })
+      .then(res => res.json())
+      .then(() => {
+        setWarehouseReceipts(prev => prev.map(r => r.ma_phieu === receiptEditData.ma_phieu ? { ...r, ...receiptEditData } : r));
+        setEditingReceiptId(null);
+      })
+      .catch(console.error);
+  };
+
+  const handleDeleteReceipt = (maPhieu) => {
+    if (window.confirm(`Bạn có chắc chắn muốn xóa phiếu nhập kho ${maPhieu}?`)) {
+      fetch(`${API_BASE_URL}/receipts/${maPhieu}`, { method: 'DELETE' })
+        .then(() => {
+          setWarehouseReceipts(prev => prev.filter(r => r.ma_phieu !== maPhieu));
+        })
+        .catch(console.error);
+    }
+  };
+
+  const [contractsList, setContractsList] = useState([]);
+  const [faultyList, setFaultyList] = useState([]);
+
+  useEffect(() => {
+    if (activeTab === 'quan-ly-vung-trong') {
+      fetch(`${API_BASE_URL}/vung-trong`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setVungTrongList(data);
+        })
+        .catch(err => console.error('Error fetching vung trong:', err));
+    } else if (activeTab === 'nguoi-dung-khach-hang') {
+      fetch(`${API_BASE_URL}/customers`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setCustomersList(data);
+        })
+        .catch(err => console.error('Error fetching customers:', err));
+    } else if (activeTab === 'quan-ly-kho') {
+      fetch(`${API_BASE_URL}/warehouses`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setWarehousesList(data);
+        })
+        .catch(err => console.error('Error fetching warehouses:', err));
+    } else if (activeTab === 'quan-ly-hop-dong') {
+      fetch(`${API_BASE_URL}/contracts`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setContractsList(data);
+        })
+        .catch(err => console.error('Error fetching contracts:', err));
+      // Also fetch customers so contract form can show customer dropdown
+      fetch(`${API_BASE_URL}/customers`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setCustomersList(data);
+        })
+        .catch(err => console.error('Error fetching customers for contracts:', err));
+    } else if (activeTab === 'lo-hang-loi') {
+      fetch(`${API_BASE_URL}/faulty-shipments`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setFaultyList(data);
+        })
+        .catch(err => console.error('Error fetching faulty shipments:', err));
+    }
+  }, [activeTab, traceabilityList]);
 
   // 1. Define custom data sets for each tab
   const getDataForTab = () => {
@@ -112,28 +255,23 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
         };
       }
       case 'lo-hang-loi': {
-        const filtered = traceabilityList.filter(item => 
-          item.ket_qua_kiem_dich === 'Không đạt'
-        );
+        const rows = (faultyList || []).map(item => ({
+          displayValues: [
+            item.ma_loi,
+            item.id_lo_hang,
+            item.ma_puc,
+            item.loai_loi,
+            item.ngay_phat_hien,
+            item.nguoi_phu_trach,
+            item.trang_thai,
+            item.ket_qua_kiem_tra_lai
+          ],
+          original: item
+        }));
         return {
-          title: 'Lô hàng lỗi kiểm dịch',
-          headers: ['Mã lô', 'Mã vùng trồng (PUC)', 'Địa chỉ vườn', 'Tên vườn', 'Ngày thu hoạch', 'Phun thuốc gần nhất', 'Cách ly', 'Loại', 'Khối lượng lô (tấn)', 'Khối lượng đóng gói (tấn)', 'Kết quả kiểm dịch'],
-          rows: filtered.map(item => ({
-            displayValues: [
-              item.id,
-              item.ma_puc,
-              item.dia_chi_vuon,
-              item.ten_vuon,
-              item.ngay_thu_hoach,
-              item.lan_phun_thuoc_gan_nhat || 'Chưa rõ',
-              item.cach_ly || 'Chưa rõ',
-              item.loai || 'Chưa rõ',
-              item.khoi_luong_lo_hang !== null && item.khoi_luong_lo_hang !== '' ? item.khoi_luong_lo_hang : 'Chưa rõ',
-              item.khoi_luong_dong_goi !== null && item.khoi_luong_dong_goi !== '' ? item.khoi_luong_dong_goi : 'Chưa rõ',
-              item.ket_qua_kiem_dich
-            ],
-            original: item
-          })),
+          title: 'Quản lý danh sách lô hàng lỗi (FR45, FR46)',
+          headers: ['Mã lỗi', 'Mã lô hàng', 'Mã vùng trồng', 'Loại lỗi', 'Ngày phát hiện', 'Người phụ trách', 'Trạng thái xử lý', 'Kết quả kiểm tra lại'],
+          rows: rows,
           badgeColor: 'danger'
         };
       }
@@ -193,17 +331,20 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
           badgeColor: 'primary'
         };
       case 'nguoi-dung-khach-hang': {
-        const rows = (customerData || []).map(item => [
-          item.ma_kh,
-          item.ten_kh,
-          item.quoc_gia,
-          `contact@${item.ten_kh.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'customer'}.com`,
-          'Chưa rõ',
-          '0 hợp đồng'
-        ]);
+        const rows = (customersList || []).map(item => ({
+          displayValues: [
+            item.ma_kh,
+            item.ten_kh,
+            item.dia_chi || 'Chưa rõ',
+            item.quoc_gia,
+            item.sdt || 'Chưa rõ',
+            item.email || 'Chưa rõ'
+          ],
+          original: item
+        }));
         return {
           title: 'Danh sách khách hàng',
-          headers: ['Mã KH', 'Tên khách hàng / Doanh nghiệp', 'Quốc gia', 'Email liên hệ', 'Số điện thoại', 'Hợp đồng active'],
+          headers: ['Mã KH', 'Tên khách hàng / Doanh nghiệp', 'Địa chỉ', 'Quốc gia', 'Số điện thoại', 'Email liên hệ'],
           rows: rows,
           badgeColor: 'success'
         };
@@ -276,40 +417,62 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
           ],
           badgeColor: 'info'
         };
-      case 'quan-ly-hop-dong':
-        return {
-          title: 'Quản lý hợp đồng',
-          headers: ['Số hợp đồng', 'Tên đối tác hợp đồng', 'Loại hợp đồng', 'Giá trị hợp đồng', 'Ngày ký', 'Trạng thái'],
-          rows: [
-            ['HD-2026-001', 'Global Fruit Import Co.', 'Hợp đồng xuất khẩu', '1,250,000,000đ', '01/05/2026', 'Đang thực hiện'],
-            ['HD-2026-002', 'HTX Nông nghiệp Cái Bè', 'Hợp đồng thu mua', '850,000,000đ', '10/05/2026', 'Đang thực hiện'],
-            ['HD-2026-003', 'Tokyo Fresh Agro', 'Hợp đồng xuất khẩu', '2,100,000,000đ', '25/05/2026', 'Đang chuẩn bị'],
-            ['HD-2026-004', 'Vận tải biển Nam Triệu', 'Hợp đồng nguyên tắc vận chuyển', 'Theo bảng giá năm 2026', '01/01/2026', 'Đang hiệu lực']
+      case 'quan-ly-hop-dong': {
+        const rows = (contractsList || []).map(item => ({
+          displayValues: [
+            item.so_hop_dong,
+            item.ma_kh ? `${item.ma_kh}${item.ten_kh ? ' - ' + item.ten_kh : ''}` : 'Chưa liên kết',
+            item.ten_doi_tac,
+            item.loai_hop_dong,
+            item.gia_tri,
+            item.ngay_ky,
+            item.trang_thai
           ],
+          original: item
+        }));
+        return {
+          title: 'Quản lý hợp đồng mua bán',
+          headers: ['Số hợp đồng', 'Khách hàng (MaKH)', 'Tên đối tác', 'Loại hợp đồng', 'Giá trị', 'Ngày ký', 'Trạng thái'],
+          rows: rows,
           badgeColor: 'primary'
         };
-      case 'quan-ly-vung-trong':
+      }
+      case 'quan-ly-vung-trong': {
+        const rows = (vungTrongList || []).map(item => ({
+          displayValues: [
+            item.ma_puc,
+            item.ten || 'Chưa rõ',
+            item.ten_vuon || 'Chưa rõ',
+            item.dia_chi || 'Chưa rõ'
+          ],
+          original: item
+        }));
         return {
           title: 'Quản lý vùng trồng nguyên liệu',
-          headers: ['Mã vùng', 'Địa điểm vùng trồng', 'Diện tích (ha)', 'Sản phẩm chủ lực', 'Tiêu chuẩn chất lượng', 'Liên hệ đại diện'],
-          rows: [
-            ['VT-TIENGIANG-01', 'Cái Bè, Tiền Giang', '25 ha', 'Sầu riêng Ri6, Monthong', 'VietGAP (Số hiệu: VG-10022)', 'Ông Nguyễn Văn Hữu'],
-            ['VT-DONGTHAP-02', 'Cao Lãnh, Đồng Tháp', '18 ha', 'Xoài cát Hòa Lộc', 'GlobalGAP (Số hiệu: GG-99221)', 'Ông Phạm Minh Đức'],
-            ['VT-BENCO-03', 'Chợ Lách, Bến Tre', '12 ha', 'Măng cụt, Bưởi da xanh', 'VietGAP (Số hiệu: VG-10055)', 'Bà Lâm Thị Thu']
-          ],
+          headers: ['Mã PUC', 'Đại diện / Chủ vườn', 'Tên vườn', 'Địa chỉ vùng trồng'],
+          rows: rows,
           badgeColor: 'success'
         };
-      case 'quan-ly-kho':
-        return {
-          title: 'Quản lý kho hàng',
-          headers: ['Mã kho', 'Tên kho hàng', 'Địa chỉ', 'Sức chứa lớn nhất', 'Sức chứa hiện tại', 'Loại kho'],
-          rows: [
-            ['KHO-01', 'Kho lạnh trung tâm Cái Bè', 'QL1A, Mỹ Đức Đông, Cái Bè, Tiền Giang', '500 tấn', '220 tấn (44%)', 'Kho đông lạnh & bảo mát'],
-            ['KHO-02', 'Kho trung chuyển Cát Lái', 'KCN Cát Lái, Quận 2, TP.HCM', '200 tấn', '50 tấn (25%)', 'Kho mát lưu hàng xuất khẩu'],
-            ['KHO-03', 'Kho bao bì vật tư', 'Nhà máy Nam Đô Cao Lãnh, Đồng Tháp', '100,000 thùng', '35,000 thùng (35%)', 'Kho khô vật liệu đóng gói']
+      }
+      case 'quan-ly-kho': {
+        const rows = (warehousesList || []).map(item => ({
+          displayValues: [
+            item.ma_kho,
+            item.ten_kho,
+            item.loai_kho === 'Đông' ? 'Kho đông lạnh' : 'Kho bảo mát',
+            `${item.suc_chua_lon_nhat} tấn`,
+            `${item.suc_chua_con_trong} tấn`,
+            item.tinh_trang_ve_sinh
           ],
+          original: item
+        }));
+        return {
+          title: 'Quản lý kho bảo quản',
+          headers: ['Mã kho', 'Tên kho hàng', 'Loại kho', 'Sức chứa tối đa', 'Sức chứa còn trống', 'Tình trạng vệ sinh'],
+          rows: rows,
           badgeColor: 'primary'
         };
+      }
       case 'bao-cao-doanh-thu':
         return {
           title: 'Báo cáo doanh thu bán hàng xuất khẩu',
@@ -350,6 +513,25 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
   const [isCreatingShipment, setIsCreatingShipment] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState(null);
+  
+  const [isCreatingVungTrong, setIsCreatingVungTrong] = useState(false);
+  const [newVungTrong, setNewVungTrong] = useState({
+    ma_puc: '',
+    ten: '',
+    ten_vuon: '',
+    dia_chi: ''
+  });
+
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    ma_kh: '',
+    ten_kh: '',
+    dia_chi: '',
+    quoc_gia: '',
+    sdt: '',
+    email: ''
+  });
+
   const [newShipment, setNewShipment] = useState({
     id: '',
     ma_puc: '',
@@ -367,8 +549,84 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
     ket_qua_kiem_dich: ''
   });
 
+  const [isCreatingContract, setIsCreatingContract] = useState(false);
+  const [newContract, setNewContract] = useState({
+    so_hop_dong: '',
+    ma_kh: '',
+    ten_doi_tac: '',
+    loai_hop_dong: '',
+    gia_tri: '',
+    ngay_ky: '',
+    trang_thai: '',
+    tiens_do_giao_hang: '',
+    vi_pham: 'Không ghi nhận vi phạm',
+    phu_luc: 'Không có phụ lục',
+    tinh_trang_thanh_toan: ''
+  });
+
+  const [isCreatingFaulty, setIsCreatingFaulty] = useState(false);
+  const [newFaulty, setNewFaulty] = useState({
+    ma_loi: '',
+    id_lo_hang: '',
+    ma_puc: '',
+    loai_loi: '',
+    ngay_phat_hien: '',
+    nguoi_phu_trach: '',
+    trang_thai: 'Đang xử lý',
+    ket_qua_kiem_tra_lai: 'Chưa kiểm tra lại'
+  });
+
   const handleCreateClick = () => {
-    if (activeTab.startsWith('lo-hang-')) {
+    if (activeTab === 'quan-ly-vung-trong') {
+      const randomNum = Math.floor(100 + Math.random() * 900);
+      setNewVungTrong({
+        ma_puc: `VT-PUC-${randomNum}`,
+        ten: '',
+        ten_vuon: '',
+        dia_chi: ''
+      });
+      setIsCreatingVungTrong(true);
+    } else if (activeTab === 'nguoi-dung-khach-hang') {
+      const randomNum = Math.floor(100 + Math.random() * 900);
+      setNewCustomer({
+        ma_kh: `KH${randomNum}`,
+        ten_kh: '',
+        dia_chi: '',
+        quoc_gia: '',
+        sdt: '',
+        email: ''
+      });
+      setIsCreatingCustomer(true);
+    } else if (activeTab === 'quan-ly-hop-dong') {
+      const randomNum = Math.floor(100 + Math.random() * 900);
+      setNewContract({
+        so_hop_dong: `HD-2026-${randomNum}`,
+        ma_kh: '',
+        ten_doi_tac: '',
+        loai_hop_dong: '',
+        gia_tri: '',
+        ngay_ky: new Date().toISOString().split('T')[0],
+        trang_thai: 'Đang chuẩn bị',
+        tiens_do_giao_hang: '',
+        vi_pham: 'Không ghi nhận vi phạm',
+        phu_luc: 'Không có phụ lục',
+        tinh_trang_thanh_toan: ''
+      });
+      setIsCreatingContract(true);
+    } else if (activeTab === 'lo-hang-loi') {
+      const randomNum = Math.floor(100 + Math.random() * 900);
+      setNewFaulty({
+        ma_loi: `LHL-${randomNum}`,
+        id_lo_hang: '',
+        ma_puc: '',
+        loai_loi: '',
+        ngay_phat_hien: new Date().toISOString().split('T')[0],
+        nguoi_phu_trach: '',
+        trang_thai: 'Đang xử lý',
+        ket_qua_kiem_tra_lai: 'Chưa kiểm tra lại'
+      });
+      setIsCreatingFaulty(true);
+    } else if (activeTab.startsWith('lo-hang-')) {
       const randomNum = Math.floor(100 + Math.random() * 900);
       setNewShipment({
         id: `LH-${randomNum}`,
@@ -390,6 +648,98 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
     } else {
       alert('Chức năng tạo mới cho danh mục này sẽ được phát triển sau!');
     }
+  };
+
+  const handleFaultySubmit = (e) => {
+    if (e) e.preventDefault();
+    if (!newFaulty.ma_loi || !newFaulty.id_lo_hang || !newFaulty.ma_puc || !newFaulty.loai_loi || !newFaulty.ngay_phat_hien || !newFaulty.nguoi_phu_trach) {
+      alert("Vui lòng điền đầy đủ các thông tin bắt buộc");
+      return;
+    }
+    fetch(`${API_BASE_URL}/faulty-shipments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newFaulty)
+    })
+      .then(res => res.json())
+      .then(saved => {
+        setFaultyList(prev => [saved, ...prev]);
+        setIsCreatingFaulty(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setFaultyList(prev => [newFaulty, ...prev]);
+        setIsCreatingFaulty(false);
+      });
+  };
+
+  const handleVungTrongSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (!newVungTrong.ma_puc || !newVungTrong.ten || !newVungTrong.ten_vuon || !newVungTrong.dia_chi) {
+      alert("Vui lòng điền đầy đủ các thông tin bắt buộc");
+      return;
+    }
+    fetch(`${API_BASE_URL}/vung-trong`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newVungTrong)
+    })
+      .then(res => res.json())
+      .then(saved => {
+        setVungTrongList(prev => [saved, ...prev]);
+        setIsCreatingVungTrong(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setVungTrongList(prev => [newVungTrong, ...prev]);
+        setIsCreatingVungTrong(false);
+      });
+  };
+
+  const handleContractSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (!newContract.so_hop_dong || !newContract.ten_doi_tac || !newContract.loai_hop_dong || !newContract.gia_tri || !newContract.ngay_ky) {
+      alert("Vui lòng điền đầy đủ các thông tin bắt buộc");
+      return;
+    }
+    fetch(`${API_BASE_URL}/contracts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newContract)
+    })
+      .then(res => res.json())
+      .then(saved => {
+        setContractsList(prev => [saved, ...prev]);
+        setIsCreatingContract(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setContractsList(prev => [newContract, ...prev]);
+        setIsCreatingContract(false);
+      });
+  };
+
+  const handleCustomerSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (!newCustomer.ma_kh || !newCustomer.ten_kh || !newCustomer.quoc_gia) {
+      alert("Vui lòng điền đầy đủ các thông tin bắt buộc");
+      return;
+    }
+    fetch(`${API_BASE_URL}/customers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newCustomer)
+    })
+      .then(res => res.json())
+      .then(saved => {
+        setCustomersList(prev => [saved, ...prev]);
+        setIsCreatingCustomer(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setCustomersList(prev => [newCustomer, ...prev]);
+        setIsCreatingCustomer(false);
+      });
   };
 
   const handleShipmentChange = (e) => {
@@ -458,6 +808,95 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
 
   const handleEditSubmit = (e) => {
     if (e) e.preventDefault();
+
+    if (activeTab === 'quan-ly-vung-trong') {
+      fetch(`${API_BASE_URL}/vung-trong/${editData.ma_puc}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editData)
+      })
+        .then(res => res.json())
+        .then(updated => {
+          setVungTrongList(prev => prev.map(item => item.ma_puc === updated.ma_puc ? updated : item));
+          if (setTraceabilityList) {
+            setTraceabilityList(prev => prev.map(item => {
+              if (item.ma_puc === updated.ma_puc) {
+                return { ...item, ten_vuon: updated.ten_vuon, dia_chi_vuon: updated.dia_chi };
+              }
+              return item;
+            }));
+          }
+          setSelectedRecord(updated);
+          setIsEditing(false);
+        })
+        .catch(err => {
+          console.error(err);
+          setSelectedRecord(editData);
+          setIsEditing(false);
+        });
+      return;
+    }
+
+    if (activeTab === 'lo-hang-loi') {
+      fetch(`${API_BASE_URL}/faulty-shipments/${editData.ma_loi}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editData)
+      })
+        .then(res => res.json())
+        .then(updated => {
+          setFaultyList(prev => prev.map(item => item.ma_loi === editData.ma_loi ? { ...item, ...editData } : item));
+          setSelectedRecord({ ...selectedRecord, ...editData });
+          setIsEditing(false);
+        })
+        .catch(err => {
+          console.error(err);
+          setSelectedRecord(editData);
+          setIsEditing(false);
+        });
+      return;
+    }
+
+    if (activeTab === 'quan-ly-hop-dong') {
+      fetch(`${API_BASE_URL}/contracts/${editData.so_hop_dong}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editData)
+      })
+        .then(res => res.json())
+        .then(updated => {
+          setContractsList(prev => prev.map(item => item.so_hop_dong === updated.so_hop_dong ? updated : item));
+          setSelectedRecord(updated);
+          setIsEditing(false);
+        })
+        .catch(err => {
+          console.error(err);
+          setSelectedRecord(editData);
+          setIsEditing(false);
+        });
+      return;
+    }
+
+    if (activeTab === 'nguoi-dung-khach-hang') {
+      fetch(`${API_BASE_URL}/customers/${editData.ma_kh}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editData)
+      })
+        .then(res => res.json())
+        .then(updated => {
+          setCustomersList(prev => prev.map(item => item.ma_kh === updated.ma_kh ? updated : item));
+          setSelectedRecord(updated);
+          setIsEditing(false);
+        })
+        .catch(err => {
+          console.error(err);
+          setSelectedRecord(editData);
+          setIsEditing(false);
+        });
+      return;
+    }
+
     if (!editData.id || !editData.ma_puc || !editData.ten_vuon || !editData.dia_chi_vuon || !editData.ngay_thu_hoach) {
       alert("Vui lòng điền đầy đủ các thông tin bắt buộc (*)");
       return;
@@ -492,7 +931,6 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
       })
       .catch(err => {
         console.error('Error updating shipment:', err);
-        // Fallback local update
         if (setTraceabilityList) {
           setTraceabilityList(prev => prev.map(item => item.id === formatted.id ? formatted : item));
         }
@@ -582,7 +1020,7 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      const allPageIds = filteredRows.map(row => row.original ? row.original.id : null).filter(Boolean);
+      const allPageIds = filteredRows.map(row => row.original ? (row.original.ma_loi || row.original.id || row.original.ma_puc || row.original.ma_kh || row.original.ma_kho) : null).filter(Boolean);
       setSelectedIds(allPageIds);
     } else {
       setSelectedIds([]);
@@ -590,6 +1028,53 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
   };
 
   const handleDeleteRow = (id) => {
+    if (activeTab === 'quan-ly-vung-trong') {
+      if (window.confirm(`Bạn có chắc chắn muốn xóa vùng trồng ${id}?`)) {
+        fetch(`${API_BASE_URL}/vung-trong/${id}`, { method: 'DELETE' })
+          .then(() => {
+            setVungTrongList(prev => prev.filter(item => item.ma_puc !== id));
+            setSelectedIds(prev => prev.filter(x => x !== id));
+          })
+          .catch(console.error);
+      }
+      return;
+    }
+    if (activeTab === 'nguoi-dung-khach-hang') {
+      if (window.confirm(`Bạn có chắc chắn muốn xóa khách hàng ${id}?`)) {
+        fetch(`${API_BASE_URL}/customers/${id}`, { method: 'DELETE' })
+          .then(() => {
+            setCustomersList(prev => prev.filter(item => item.ma_kh !== id));
+            setSelectedIds(prev => prev.filter(x => x !== id));
+          })
+          .catch(console.error);
+      }
+      return;
+    }
+
+    if (activeTab === 'lo-hang-loi') {
+      if (window.confirm(`Bạn có chắc chắn muốn xóa lô hàng lỗi ${id}?`)) {
+        fetch(`${API_BASE_URL}/faulty-shipments/${id}`, { method: 'DELETE' })
+          .then(() => {
+            setFaultyList(prev => prev.filter(item => item.ma_loi !== id));
+            setSelectedIds(prev => prev.filter(x => x !== id));
+          })
+          .catch(console.error);
+      }
+      return;
+    }
+
+    if (activeTab === 'quan-ly-hop-dong') {
+      if (window.confirm(`Bạn có chắc chắn muốn xóa hợp đồng ${id}?`)) {
+        fetch(`${API_BASE_URL}/contracts/${id}`, { method: 'DELETE' })
+          .then(() => {
+            setContractsList(prev => prev.filter(item => item.so_hop_dong !== id));
+            setSelectedIds(prev => prev.filter(x => x !== id));
+          })
+          .catch(console.error);
+      }
+      return;
+    }
+
     if (window.confirm(`Bạn có chắc chắn muốn xóa lô hàng ${id}?`)) {
       if (setTraceabilityList) {
         setTraceabilityList(prev => prev.filter(item => item.id !== id));
@@ -599,6 +1084,52 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
   };
 
   const handleBulkDelete = () => {
+    if (activeTab === 'quan-ly-vung-trong') {
+      if (window.confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} vùng trồng đã chọn?`)) {
+        Promise.all(selectedIds.map(id => fetch(`${API_BASE_URL}/vung-trong/${id}`, { method: 'DELETE' })))
+          .then(() => {
+            setVungTrongList(prev => prev.filter(item => !selectedIds.includes(item.ma_puc)));
+            setSelectedIds([]);
+          })
+          .catch(console.error);
+      }
+      return;
+    }
+    if (activeTab === 'lo-hang-loi') {
+      if (window.confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} lô hàng lỗi đã chọn?`)) {
+        Promise.all(selectedIds.map(id => fetch(`${API_BASE_URL}/faulty-shipments/${id}`, { method: 'DELETE' })))
+          .then(() => {
+            setFaultyList(prev => prev.filter(item => !selectedIds.includes(item.ma_loi)));
+            setSelectedIds([]);
+          })
+          .catch(console.error);
+      }
+      return;
+    }
+
+    if (activeTab === 'quan-ly-hop-dong') {
+      if (window.confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} hợp đồng đã chọn?`)) {
+        Promise.all(selectedIds.map(id => fetch(`${API_BASE_URL}/contracts/${id}`, { method: 'DELETE' })))
+          .then(() => {
+            setContractsList(prev => prev.filter(item => !selectedIds.includes(item.so_hop_dong)));
+            setSelectedIds([]);
+          })
+          .catch(console.error);
+      }
+      return;
+    }
+    if (activeTab === 'nguoi-dung-khach-hang') {
+      if (window.confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} khách hàng đã chọn?`)) {
+        Promise.all(selectedIds.map(id => fetch(`${API_BASE_URL}/customers/${id}`, { method: 'DELETE' })))
+          .then(() => {
+            setCustomersList(prev => prev.filter(item => !selectedIds.includes(item.ma_kh)));
+            setSelectedIds([]);
+          })
+          .catch(console.error);
+      }
+      return;
+    }
+
     if (window.confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} lô hàng đã chọn?`)) {
       if (setTraceabilityList) {
         setTraceabilityList(prev => prev.filter(item => !selectedIds.includes(item.id)));
@@ -608,7 +1139,87 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
   };
 
   const handleRowDoubleClick = (record) => {
+    if (activeTab === 'quan-ly-kho') {
+      setSelectedWarehouse(record);
+      setIsEditingWarehouse(false);
+      fetch(`${API_BASE_URL}/warehouses/${record.ma_kho}/receipts`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setWarehouseReceipts(data);
+        })
+        .catch(err => console.error(err));
+      return;
+    }
+    if (activeTab === 'quan-ly-hop-dong') {
+      setSelectedRecord(record);
+      return;
+    }
+    if (activeTab === 'lo-hang-loi') {
+      if (role !== 'admin' && role !== 'technical') {
+        alert("Bạn không có quyền xem thông tin chi tiết lô hàng lỗi (Chỉ Bộ phận quản lý và Bộ phận kỹ thuật được quyền xem).");
+        return;
+      }
+      setSelectedRecord(record);
+      return;
+    }
+    if (role !== 'admin' && role !== 'production') {
+      alert("Bạn không có quyền xem thông tin chi tiết lô hàng này (Chỉ Bộ phận quản lý và Bộ phận sản xuất được quyền xem).");
+      return;
+    }
     setSelectedRecord(record);
+  };
+
+  const handleWarehouseEditChange = (e) => {
+    const { name, value } = e.target;
+    setWarehouseEditData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleWarehouseEditSubmit = (e) => {
+    if (e) e.preventDefault();
+    if (role === 'qaqc') {
+      fetch(`${API_BASE_URL}/warehouses/${warehouseEditData.ma_kho}/hygiene`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tinh_trang_ve_sinh: warehouseEditData.tinh_trang_ve_sinh })
+      })
+        .then(res => res.json())
+        .then(() => {
+          setWarehousesList(prev => prev.map(w => w.ma_kho === warehouseEditData.ma_kho ? { ...w, tinh_trang_ve_sinh: warehouseEditData.tinh_trang_ve_sinh } : w));
+          setSelectedWarehouse(prev => ({ ...prev, tinh_trang_ve_sinh: warehouseEditData.tinh_trang_ve_sinh }));
+          setIsEditingWarehouse(false);
+        })
+        .catch(console.error);
+    } else if (role === 'logistics') {
+      fetch(`${API_BASE_URL}/warehouses/${warehouseEditData.ma_kho}/capacity`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suc_chua_con_trong: warehouseEditData.suc_chua_con_trong })
+      })
+        .then(res => res.json())
+        .then(() => {
+          setWarehousesList(prev => prev.map(w => w.ma_kho === warehouseEditData.ma_kho ? { ...w, suc_chua_con_trong: parseFloat(warehouseEditData.suc_chua_con_trong) } : w));
+          setSelectedWarehouse(prev => ({ ...prev, suc_chua_con_trong: parseFloat(warehouseEditData.suc_chua_con_trong) }));
+          setIsEditingWarehouse(false);
+        })
+        .catch(console.error);
+    } else if (role === 'admin') {
+      // Admin edits everything: hygiene, temperature, and capacity
+      fetch(`${API_BASE_URL}/warehouses/${warehouseEditData.ma_kho}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(warehouseEditData)
+      })
+        .then(res => res.json())
+        .then(() => {
+          setWarehousesList(prev => prev.map(w => w.ma_kho === warehouseEditData.ma_kho ? { ...w, ...warehouseEditData } : w));
+          setSelectedWarehouse({ ...warehouseEditData });
+          setIsEditingWarehouse(false);
+        })
+        .catch(console.error);
+    }
   };
 
   const handleCloseModal = () => {
@@ -634,7 +1245,7 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
       <div className="table-toolbar">
         <h2 className="table-title">{data.title} ({filteredRows.length})</h2>
         <div className="toolbar-actions">
-          {selectedIds.length > 0 && (
+          {selectedIds.length > 0 && role === 'admin' && (
             <button 
               className="btn-danger" 
               onClick={handleBulkDelete}
@@ -719,7 +1330,9 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
             </svg>
             Xuất Excel
           </button>
-          <button className="btn-primary" onClick={handleCreateClick}>+ Tạo mới</button>
+          {(((role === 'admin' || role === 'technical')) || (activeTab === 'quan-ly-hop-dong' && role === 'admin')) && (
+            <button className="btn-primary" onClick={handleCreateClick}>+ Tạo mới</button>
+          )}
         </div>
       </div>
 
@@ -767,6 +1380,7 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
                   type="checkbox" 
                   onChange={handleSelectAll}
                   checked={filteredRows.length > 0 && selectedIds.length === filteredRows.filter(r => r.original).length}
+                  disabled={role !== 'admin'}
                 />
               </th>
               <th className="col-status"></th>
@@ -792,8 +1406,9 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
                     {originalObj ? (
                       <input 
                         type="checkbox" 
-                        checked={selectedIds.includes(originalObj.id)}
-                        onChange={() => handleSelectRow(originalObj.id)}
+                        checked={selectedIds.includes(originalObj.ma_loi || originalObj.id || originalObj.ma_puc || originalObj.ma_kh || originalObj.ma_kho || originalObj.id_lo_hang)}
+                        onChange={() => handleSelectRow(originalObj.ma_loi || originalObj.id || originalObj.ma_puc || originalObj.ma_kh || originalObj.ma_kho || originalObj.id_lo_hang)}
+                        disabled={role !== 'admin'}
                       />
                     ) : (
                       <input type="checkbox" disabled />
@@ -846,268 +1461,622 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
         <div className="modal-backdrop" onClick={handleCloseModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: isEditing ? '750px' : '650px' }}>
             <div className="modal-header">
-              <h3>{isEditing ? `Chỉnh sửa lô hàng: ${selectedRecord.id}` : `Chi tiết lô hàng: ${selectedRecord.id}`}</h3>
+              <h3>{isEditing ? `Chỉnh sửa: ${selectedRecord.id || selectedRecord.so_hop_dong}` : `Chi tiết: ${selectedRecord.id || selectedRecord.so_hop_dong}`}</h3>
               <button className="close-btn" onClick={handleCloseModal}>&times;</button>
             </div>
             <div className="modal-body" style={isEditing ? { padding: '20px 24px' } : {}}>
-              {isEditing ? (
-                <div>
+              {activeTab === 'quan-ly-vung-trong' ? (
+                isEditing ? (
                   <form onSubmit={handleEditSubmit}>
                     <div className="other-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px 20px' }}>
                       <div className="form-group">
                         <label>Mã số vùng trồng (PUC)*</label>
-                        <input 
-                          type="text" 
-                          name="ma_puc" 
-                          value={editData.ma_puc || ''} 
-                          onChange={handleEditChange} 
-                          required 
-                        />
+                        <input type="text" name="ma_puc" value={editData.ma_puc || ''} disabled />
                       </div>
-                      
                       <div className="form-group">
-                        <label>Tên vườn trồng*</label>
-                        <input 
-                          type="text" 
-                          name="ten_vuon" 
-                          value={editData.ten_vuon || ''} 
-                          onChange={handleEditChange} 
-                          required 
-                        />
+                        <label>Đại diện / Chủ vườn*</label>
+                        <input type="text" name="ten" value={editData.ten || ''} onChange={handleEditChange} required />
                       </div>
-                      
                       <div className="form-group">
-                        <label>Địa chỉ vườn*</label>
-                        <input 
-                          type="text" 
-                          name="dia_chi_vuon" 
-                          value={editData.dia_chi_vuon || ''} 
-                          onChange={handleEditChange} 
-                          required 
-                        />
+                        <label>Tên vườn*</label>
+                        <input type="text" name="ten_vuon" value={editData.ten_vuon || ''} onChange={handleEditChange} required />
                       </div>
-                      
                       <div className="form-group">
-                        <label>Ngày thu hoạch*</label>
-                        <input 
-                          type="date" 
-                          name="ngay_thu_hoach" 
-                          value={editData.ngay_thu_hoach || ''} 
-                          onChange={handleEditChange} 
-                          required 
-                        />
+                        <label>Địa chỉ vùng trồng*</label>
+                        <input type="text" name="dia_chi" value={editData.dia_chi || ''} onChange={handleEditChange} required />
                       </div>
-                      
+                    </div>
+                  </form>
+                ) : (
+                  <table className="detail-table">
+                    <tbody>
+                      <tr>
+                        <th>Mã PUC</th>
+                        <td>{selectedRecord.ma_puc}</td>
+                      </tr>
+                      <tr>
+                        <th>Đại diện / Chủ vườn</th>
+                        <td>{selectedRecord.ten || 'Chưa rõ'}</td>
+                      </tr>
+                      <tr>
+                        <th>Tên vườn</th>
+                        <td>{selectedRecord.ten_vuon || 'Chưa rõ'}</td>
+                      </tr>
+                      <tr>
+                        <th>Địa chỉ</th>
+                        <td>{selectedRecord.dia_chi || 'Chưa rõ'}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                )
+              ) : activeTab === 'quan-ly-hop-dong' ? (
+                isEditing ? (
+                  <form onSubmit={handleEditSubmit}>
+                    <div className="other-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px 20px' }}>
                       <div className="form-group">
-                        <label>Lần phun thuốc gần nhất</label>
-                        <input 
-                          type="date" 
-                          name="lan_phun_thuoc_gan_nhat" 
-                          value={editData.lan_phun_thuoc_gan_nhat || ''} 
-                          onChange={handleEditChange} 
-                        />
+                        <label>Số hợp đồng*</label>
+                        <input type="text" name="so_hop_dong" value={editData.so_hop_dong || ''} disabled />
                       </div>
-                      
                       <div className="form-group">
-                        <label>Cách ly (Có/Không)</label>
-                        <select 
-                          name="cach_ly" 
-                          value={editData.cach_ly || ''} 
-                          onChange={handleEditChange}
-                        >
-                          <option value="">Chưa rõ (Đang phân loại)</option>
-                          <option value="Có">Có</option>
-                          <option value="Không">Không</option>
+                        <label>Tên đối tác hợp đồng*</label>
+                        <input type="text" name="ten_doi_tac" value={editData.ten_doi_tac || ''} onChange={handleEditChange} required disabled={role !== 'admin'} />
+                      </div>
+                      <div className="form-group">
+                        <label>Loại hợp đồng*</label>
+                        <select name="loai_hop_dong" value={editData.loai_hop_dong || ''} onChange={handleEditChange} required disabled={role !== 'admin'}>
+                          <option value="">-- Chọn loại --</option>
+                          <option value="Hợp đồng thu mua">Hợp đồng thu mua</option>
+                          <option value="Hợp đồng xuất khẩu">Hợp đồng xuất khẩu</option>
+                          <option value="Hợp đồng nguyên tắc vận chuyển">Hợp đồng nguyên tắc vận chuyển</option>
                         </select>
                       </div>
-                      
                       <div className="form-group">
-                        <label>Loại chế biến/đóng gói</label>
-                        <select 
-                          name="loai" 
-                          value={editData.loai || ''} 
-                          onChange={handleEditChange}
-                        >
-                          <option value="">Chưa rõ (Đang phân loại)</option>
-                          <option value="Trái tươi xuất khẩu">Trái tươi xuất khẩu</option>
-                          <option value="Nguyên trái đông lạnh">Nguyên trái đông lạnh</option>
-                          <option value="Lột múi cơm">Lột múi cơm</option>
-                          <option value="Sấy khô">Sấy khô</option>
+                        <label>Giá trị hợp đồng*</label>
+                        <input type="text" name="gia_tri" value={editData.gia_tri || ''} onChange={handleEditChange} required disabled={role !== 'admin'} />
+                      </div>
+                      <div className="form-group">
+                        <label>Ngày ký hợp đồng*</label>
+                        <input type="date" name="ngay_ky" value={editData.ngay_ky || ''} onChange={handleEditChange} required disabled={role !== 'admin'} />
+                      </div>
+                      <div className="form-group">
+                        <label>Trạng thái thực hiện*</label>
+                        <select name="trang_thai" value={editData.trang_thai || ''} onChange={handleEditChange} required disabled={role !== 'admin'}>
+                          <option value="Đang chuẩn bị">Đang chuẩn bị</option>
+                          <option value="Đang thực hiện">Đang thực hiện</option>
+                          <option value="Đang hiệu lực">Đang hiệu lực</option>
+                          <option value="Đã hoàn thành">Đã hoàn thành</option>
+                          <option value="Đã hủy">Đã hủy</option>
                         </select>
                       </div>
-                      
-                      <div className="form-group">
-                        <label>Khối lượng lô hàng (tấn)</label>
-                        <input 
-                          type="number" 
-                          step="0.01"
-                          name="khoi_luong_lo_hang" 
-                          value={editData.khoi_luong_lo_hang !== null && editData.khoi_luong_lo_hang !== undefined ? editData.khoi_luong_lo_hang : ''} 
-                          onChange={handleEditChange} 
-                          placeholder="VD: 12.5" 
-                        />
+                      <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                        <label>Theo dõi tiến độ giao hàng (FR15)</label>
+                        <textarea name="tiens_do_giao_hang" value={editData.tiens_do_giao_hang || ''} onChange={handleEditChange} rows="3" style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)' }} disabled={role !== 'admin'}></textarea>
                       </div>
-                      
-                      <div className="form-group">
-                        <label>Khối lượng đóng gói (tấn)</label>
-                        <input 
-                          type="number" 
-                          step="0.01"
-                          name="khoi_luong_dong_goi" 
-                          value={editData.khoi_luong_dong_goi !== null && editData.khoi_luong_dong_goi !== undefined ? editData.khoi_luong_dong_goi : ''} 
-                          onChange={handleEditChange} 
-                          placeholder="VD: 11.8" 
-                        />
+                      <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                        <label>Quản lý thanh toán hợp đồng (FR18)</label>
+                        <textarea name="tinh_trang_thanh_toan" value={editData.tinh_trang_thanh_toan || ''} onChange={handleEditChange} rows="3" style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)' }} disabled={role !== 'admin'}></textarea>
                       </div>
-                      
-                      <div className="form-group">
-                        <label>Nơi xuất khẩu</label>
-                        <input 
-                          type="text" 
-                          name="noi_xuat_khau" 
-                          value={editData.noi_xuat_khau || ''} 
-                          onChange={handleEditChange} 
-                          placeholder="VD: Trung Quốc, Hoa Kỳ" 
-                        />
+                      <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                        <label>Xử lý vi phạm hợp đồng (FR16)</label>
+                        <textarea name="vi_pham" value={editData.vi_pham || ''} onChange={handleEditChange} rows="3" style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)' }} disabled={role !== 'admin'}></textarea>
                       </div>
-                      
-                      <div className="form-group">
-                        <label>Tên cơ sở đóng gói</label>
-                        <input 
-                          type="text" 
-                          name="ten_co_so_dong_goi" 
-                          value={editData.ten_co_so_dong_goi || ''} 
-                          onChange={handleEditChange} 
-                          placeholder="VD: Cơ sở đóng gói Thanh Bình" 
-                        />
+                      <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                        <label>Quản lý phụ lục hợp đồng (FR17)</label>
+                        <textarea name="phu_luc" value={editData.phu_luc || ''} onChange={handleEditChange} rows="3" style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)' }} disabled={role !== 'admin'}></textarea>
                       </div>
-                      
+                    </div>
+                  </form>
+                ) : (
+                  <table className="detail-table">
+                    <tbody>
+                      <tr>
+                        <th>Số hợp đồng</th>
+                        <td>{selectedRecord.so_hop_dong}</td>
+                      </tr>
+                      <tr>
+                        <th>Tên đối tác hợp đồng</th>
+                        <td>{selectedRecord.ten_doi_tac}</td>
+                      </tr>
+                      <tr>
+                        <th>Loại hợp đồng</th>
+                        <td>{selectedRecord.loai_hop_dong}</td>
+                      </tr>
+                      <tr>
+                        <th>Giá trị hợp đồng</th>
+                        <td>{selectedRecord.gia_tri}</td>
+                      </tr>
+                      <tr>
+                        <th>Ngày ký</th>
+                        <td>{selectedRecord.ngay_ky}</td>
+                      </tr>
+                      <tr>
+                        <th>Trạng thái</th>
+                        <td>
+                          <span className={`badge-class ${
+                            selectedRecord.trang_thai === 'Đang thực hiện' || selectedRecord.trang_thai === 'Đang hiệu lực' ? 'success' : 
+                            selectedRecord.trang_thai === 'Đang chuẩn bị' ? 'info' : 'warning'
+                          }`}>{selectedRecord.trang_thai}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <th>Tiến độ giao hàng (FR15)</th>
+                        <td>{selectedRecord.tiens_do_giao_hang || <span className="empty-value">Chưa có thông tin tiến độ</span>}</td>
+                      </tr>
+                      <tr>
+                        <th>Tình trạng thanh toán (FR18)</th>
+                        <td>{selectedRecord.tinh_trang_thanh_toan || <span className="empty-value">Chưa có thông tin thanh toán</span>}</td>
+                      </tr>
+                      <tr>
+                        <th>Vi phạm hợp đồng (FR16)</th>
+                        <td>
+                          {selectedRecord.vi_pham ? (
+                            <span style={{ color: selectedRecord.vi_pham.includes('vi phạm') ? 'inherit' : '#ef4444', fontWeight: '500' }}>
+                              {selectedRecord.vi_pham}
+                            </span>
+                          ) : (
+                            <span className="empty-value">Chưa ghi nhận vi phạm</span>
+                          )}
+                        </td>
+                      </tr>
+                      <tr>
+                        <th>Phụ lục hợp đồng (FR17)</th>
+                        <td>{selectedRecord.phu_luc || <span className="empty-value">Không có phụ lục</span>}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                )
+              ) : activeTab === 'lo-hang-loi' ? (
+                isEditing ? (
+                  <form onSubmit={handleEditSubmit}>
+                    <div className="other-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px 20px' }}>
                       <div className="form-group">
-                        <label>Mã số cơ sở đóng gói (PHC)</label>
-                        <input 
-                          type="text" 
-                          name="ma_phc" 
-                          value={editData.ma_phc || ''} 
-                          onChange={handleEditChange} 
-                          placeholder="VD: VN-PHC-0002" 
-                        />
+                        <label>Mã lỗi*</label>
+                        <input type="text" name="ma_loi" value={editData.ma_loi || ''} disabled />
                       </div>
-                      
                       <div className="form-group">
-                        <label>Kết quả kiểm dịch</label>
+                        <label>Mã lô hàng gốc*</label>
+                        <input type="text" name="id_lo_hang" value={editData.id_lo_hang || ''} disabled />
+                      </div>
+                      <div className="form-group">
+                        <label>Mã vùng trồng (PUC)*</label>
+                        <input type="text" name="ma_puc" value={editData.ma_puc || ''} disabled />
+                      </div>
+                      <div className="form-group">
+                        <label>Loại lỗi*</label>
                         <select 
-                          name="ket_qua_kiem_dich" 
-                          value={editData.ket_qua_kiem_dich || ''} 
-                          onChange={handleEditChange}
+                          name="loai_loi" 
+                          value={editData.loai_loi || ''} 
+                          onChange={handleEditChange} 
+                          required
+                          disabled={role !== 'admin' && role !== 'technical'}
                         >
-                          <option value="">Chưa có kết quả</option>
+                          <option value="Tồn đọng dư lượng hóa chất">Tồn đọng dư lượng hóa chất</option>
+                          <option value="Phát hiện sinh vật KDTV">Phát hiện sinh vật KDTV</option>
+                          <option value="Lỗi tem nhãn / Bao bì">Lỗi tem nhãn / Bao bì</option>
+                          <option value="Khác">Khác</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Ngày phát hiện*</label>
+                        <input type="date" name="ngay_phat_hien" value={editData.ngay_phat_hien || ''} onChange={handleEditChange} required disabled={role !== 'admin' && role !== 'technical'} />
+                      </div>
+                      <div className="form-group">
+                        <label>Người phụ trách*</label>
+                        <input type="text" name="nguoi_phu_trach" value={editData.nguoi_phu_trach || ''} onChange={handleEditChange} required disabled={role !== 'admin' && role !== 'technical'} />
+                      </div>
+                      <div className="form-group">
+                        <label>Trạng thái xử lý*</label>
+                        <select 
+                          name="trang_thai" 
+                          value={editData.trang_thai || ''} 
+                          onChange={handleEditChange} 
+                          required
+                          disabled={role !== 'admin' && role !== 'technical'}
+                        >
+                          <option value="Đang xử lý">Đang xử lý</option>
+                          <option value="Đã xử lý xong">Đã xử lý xong</option>
+                          <option value="Đã hủy">Đã hủy</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Kết quả kiểm tra lại*</label>
+                        <select 
+                          name="ket_qua_kiem_tra_lai" 
+                          value={editData.ket_qua_kiem_tra_lai || ''} 
+                          onChange={handleEditChange} 
+                          required
+                          disabled={role !== 'admin' && role !== 'technical'}
+                        >
+                          <option value="Chưa kiểm tra lại">Chưa kiểm tra lại</option>
                           <option value="Đạt">Đạt</option>
                           <option value="Không đạt">Không đạt</option>
                         </select>
                       </div>
                     </div>
                   </form>
-                  {activeTab.startsWith('lo-hang-') && (
-                    <div style={{ borderTop: '1px solid var(--border-color)', marginTop: '20px', paddingTop: '10px' }}>
-                      <GS1QRCode shipment={editData} />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {(() => {
-                    const step = getShipmentStep(selectedRecord);
-                    return (
-                      <div className="shipment-progress-stepper" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', padding: '16px', background: 'var(--bg-body)', borderRadius: '12px', border: '1px solid var(--border-color)', position: 'relative' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative', zIndex: 2 }}>
-                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: step.index >= 0 ? '#4f46e5' : '#cbd5e1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '700' }}>1</div>
-                          <span style={{ fontSize: '12px', marginTop: '6px', fontWeight: '600', color: step.index >= 0 ? 'var(--text-main)' : 'var(--text-muted)' }}>Tiếp nhận</span>
-                        </div>
-                        <div style={{ flex: 1, height: '2px', backgroundColor: step.index >= 1 ? '#4f46e5' : '#e2e8f0', marginTop: '-18px', zIndex: 1 }}></div>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative', zIndex: 2 }}>
-                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: step.index >= 1 ? '#4f46e5' : '#cbd5e1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '700' }}>2</div>
-                          <span style={{ fontSize: '12px', marginTop: '6px', fontWeight: '600', color: step.index >= 1 ? 'var(--text-main)' : 'var(--text-muted)' }}>Đang xử lý</span>
-                        </div>
-                        <div style={{ flex: 1, height: '2px', backgroundColor: step.index >= 2 ? (step.color === 'danger' ? '#ef4444' : '#10b981') : '#e2e8f0', marginTop: '-18px', zIndex: 1 }}></div>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative', zIndex: 2 }}>
-                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: step.index >= 2 ? (step.color === 'danger' ? '#ef4444' : '#10b981') : '#cbd5e1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '700' }}>3</div>
-                          <span style={{ fontSize: '12px', marginTop: '6px', fontWeight: '600', color: step.index >= 2 ? (step.color === 'danger' ? '#ef4444' : '#10b981') : 'var(--text-muted)' }}>{step.label}</span>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                ) : (
                   <table className="detail-table">
                     <tbody>
                       <tr>
-                        <th>Mã lô hàng (ID)</th>
-                        <td>{selectedRecord.id || <span className="empty-value">Trống</span>}</td>
+                        <th>Mã lỗi</th>
+                        <td>{selectedRecord.ma_loi}</td>
                       </tr>
                       <tr>
-                        <th>Mã số vùng trồng (PUC)</th>
-                        <td>{selectedRecord.ma_puc || <span className="empty-value">Trống</span>}</td>
+                        <th>Mã lô hàng gốc</th>
+                        <td>{selectedRecord.id_lo_hang}</td>
                       </tr>
                       <tr>
-                        <th>Địa chỉ vườn</th>
-                        <td>{selectedRecord.dia_chi_vuon || <span className="empty-value">Trống</span>}</td>
+                        <th>Mã vùng trồng (PUC)</th>
+                        <td>{selectedRecord.ma_puc}</td>
                       </tr>
                       <tr>
-                        <th>Tên vườn</th>
-                        <td>{selectedRecord.ten_vuon || <span className="empty-value">Trống</span>}</td>
-                      </tr>
-                      <tr>
-                        <th>Ngày thu hoạch</th>
-                        <td>{selectedRecord.ngay_thu_hoach || <span className="empty-value">Trống</span>}</td>
-                      </tr>
-                      <tr>
-                        <th>Lần phun thuốc gần nhất</th>
-                        <td>{selectedRecord.lan_phun_thuoc_gan_nhat || <span className="empty-value">Trống</span>}</td>
-                      </tr>
-                      <tr>
-                        <th>Cách ly</th>
-                        <td>{selectedRecord.cach_ly || <span className="empty-value">Trống</span>}</td>
-                      </tr>
-                      <tr>
-                        <th>Loại</th>
-                        <td>{selectedRecord.loai || <span className="empty-value">Trống</span>}</td>
-                      </tr>
-                      <tr>
-                        <th>Khối lượng lô hàng (tấn)</th>
-                        <td>{selectedRecord.khoi_luong_lo_hang !== null && selectedRecord.khoi_luong_lo_hang !== '' ? `${selectedRecord.khoi_luong_lo_hang} tấn` : <span className="empty-value">Trống</span>}</td>
-                      </tr>
-                      <tr>
-                        <th>Khối lượng đóng gói (tấn)</th>
-                        <td>{selectedRecord.khoi_luong_dong_goi !== null && selectedRecord.khoi_luong_dong_goi !== '' ? `${selectedRecord.khoi_luong_dong_goi} tấn` : <span className="empty-value">Trống</span>}</td>
-                      </tr>
-                      <tr>
-                        <th>Nơi xuất khẩu</th>
-                        <td>{selectedRecord.noi_xuat_khau || <span className="empty-value">Trống</span>}</td>
-                      </tr>
-                      <tr>
-                        <th>Tên cơ sở đóng gói</th>
-                        <td>{selectedRecord.ten_co_so_dong_goi || <span className="empty-value">Trống</span>}</td>
-                      </tr>
-                      <tr>
-                        <th>Mã số cơ sở đóng gói (PHC)</th>
-                        <td>{selectedRecord.ma_phc || <span className="empty-value">Trống</span>}</td>
-                      </tr>
-                      <tr>
-                        <th>Kết quả kiểm dịch</th>
+                        <th>Loại lỗi kiểm dịch</th>
                         <td>
-                          {selectedRecord.ket_qua_kiem_dich ? (
-                            <span className={`quarantine-badge ${selectedRecord.ket_qua_kiem_dich === 'Đạt' ? 'passed' : 'failed'}`}>
-                              {selectedRecord.ket_qua_kiem_dich}
-                            </span>
-                          ) : (
-                            <span className="empty-value">Trống</span>
-                          )}
+                          <span className="badge-class danger" style={{ padding: '4px 10px', fontSize: '12px' }}>
+                            {selectedRecord.loai_loi}
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <th>Ngày phát hiện</th>
+                        <td>{selectedRecord.ngay_phat_hien}</td>
+                      </tr>
+                      <tr>
+                        <th>Người phụ trách xử lý</th>
+                        <td>{selectedRecord.nguoi_phu_trach}</td>
+                      </tr>
+                      <tr>
+                        <th>Trạng thái xử lý</th>
+                        <td>
+                          <span className={`badge-class ${selectedRecord.trang_thai === 'Đã xử lý xong' ? 'success' : 'warning'}`}>
+                            {selectedRecord.trang_thai}
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <th>Kết quả kiểm tra lại</th>
+                        <td>
+                          <span className={`badge-class ${selectedRecord.ket_qua_kiem_tra_lai === 'Đạt' ? 'success' : selectedRecord.ket_qua_kiem_tra_lai === 'Không đạt' ? 'danger' : 'info'}`}>
+                            {selectedRecord.ket_qua_kiem_tra_lai}
+                          </span>
                         </td>
                       </tr>
                     </tbody>
                   </table>
-                  {activeTab.startsWith('lo-hang-') && (
-                    <GS1QRCode shipment={selectedRecord} />
-                  )}
-                </>
+                )
+              ) : activeTab === 'nguoi-dung-khach-hang' ? (
+                isEditing ? (
+                  <form onSubmit={handleEditSubmit}>
+                    <div className="other-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px 20px' }}>
+                      <div className="form-group">
+                        <label>Mã khách hàng*</label>
+                        <input type="text" name="ma_kh" value={editData.ma_kh || ''} disabled />
+                      </div>
+                      <div className="form-group">
+                        <label>Tên khách hàng / Doanh nghiệp*</label>
+                        <input type="text" name="ten_kh" value={editData.ten_kh || ''} onChange={handleEditChange} required />
+                      </div>
+                      <div className="form-group">
+                        <label>Địa chỉ</label>
+                        <input type="text" name="dia_chi" value={editData.dia_chi || ''} onChange={handleEditChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Quốc gia*</label>
+                        <input type="text" name="quoc_gia" value={editData.quoc_gia || ''} onChange={handleEditChange} required />
+                      </div>
+                      <div className="form-group">
+                        <label>Số điện thoại</label>
+                        <input type="text" name="sdt" value={editData.sdt || ''} onChange={handleEditChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Email liên hệ</label>
+                        <input type="email" name="email" value={editData.email || ''} onChange={handleEditChange} />
+                      </div>
+                    </div>
+                  </form>
+                ) : (
+                  <table className="detail-table">
+                    <tbody>
+                      <tr>
+                        <th>Mã khách hàng</th>
+                        <td>{selectedRecord.ma_kh}</td>
+                      </tr>
+                      <tr>
+                        <th>Tên khách hàng / Doanh nghiệp</th>
+                        <td>{selectedRecord.ten_kh}</td>
+                      </tr>
+                      <tr>
+                        <th>Địa chỉ</th>
+                        <td>{selectedRecord.dia_chi || 'Chưa rõ'}</td>
+                      </tr>
+                      <tr>
+                        <th>Quốc gia</th>
+                        <td>{selectedRecord.quoc_gia}</td>
+                      </tr>
+                      <tr>
+                        <th>Số điện thoại</th>
+                        <td>{selectedRecord.sdt || 'Chưa rõ'}</td>
+                      </tr>
+                      <tr>
+                        <th>Email liên hệ</th>
+                        <td>{selectedRecord.email || 'Chưa rõ'}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                )
+              ) : (
+                isEditing ? (
+                  <div>
+                    <form onSubmit={handleEditSubmit}>
+                      <div className="other-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px 20px' }}>
+                        <div className="form-group">
+                          <label>Mã số vùng trồng (PUC)*</label>
+                          <input 
+                            type="text" 
+                            name="ma_puc" 
+                            value={editData.ma_puc || ''} 
+                            onChange={handleEditChange} 
+                            required 
+                            disabled={role !== 'admin' && role !== 'production'}
+                          />
+                        </div>
+                        
+                        <div className="form-group">
+                          <label>Tên vườn trồng*</label>
+                          <input 
+                            type="text" 
+                            name="ten_vuon" 
+                            value={editData.ten_vuon || ''} 
+                            onChange={handleEditChange} 
+                            required 
+                            disabled={role !== 'admin'}
+                          />
+                        </div>
+                        
+                        <div className="form-group">
+                          <label>Địa chỉ vườn*</label>
+                          <input 
+                            type="text" 
+                            name="dia_chi_vuon" 
+                            value={editData.dia_chi_vuon || ''} 
+                            onChange={handleEditChange} 
+                            required 
+                            disabled={role !== 'admin' && role !== 'production'}
+                          />
+                        </div>
+                        
+                        <div className="form-group">
+                          <label>Ngày thu hoạch*</label>
+                          <input 
+                            type="date" 
+                            name="ngay_thu_hoach" 
+                            value={editData.ngay_thu_hoach || ''} 
+                            onChange={handleEditChange} 
+                            required 
+                            disabled={role !== 'admin' && role !== 'technical'}
+                          />
+                        </div>
+                        
+                        <div className="form-group">
+                          <label>Lần phun thuốc gần nhất</label>
+                          <input 
+                            type="date" 
+                            name="lan_phun_thuoc_gan_nhat" 
+                            value={editData.lan_phun_thuoc_gan_nhat || ''} 
+                            onChange={handleEditChange} 
+                            disabled={role !== 'admin' && role !== 'technical'}
+                          />
+                        </div>
+                        
+                        <div className="form-group">
+                          <label>Cách ly (Có/Không)</label>
+                          <select 
+                            name="cach_ly" 
+                            value={editData.cach_ly || ''} 
+                            onChange={handleEditChange}
+                            disabled={role !== 'admin' && role !== 'technical'}
+                          >
+                            <option value="">Chưa rõ (Đang phân loại)</option>
+                            <option value="Có">Có</option>
+                            <option value="Không">Không</option>
+                          </select>
+                        </div>
+                        
+                        <div className="form-group">
+                          <label>Loại chế biến/đóng gói</label>
+                          <select 
+                            name="loai" 
+                            value={editData.loai || ''} 
+                            onChange={handleEditChange}
+                            disabled={role !== 'admin' && role !== 'technical'}
+                          >
+                            <option value="">Chưa rõ (Đang phân loại)</option>
+                            <option value="Trái tươi xuất khẩu">Trái tươi xuất khẩu</option>
+                            <option value="Nguyên trái đông lạnh">Nguyên trái đông lạnh</option>
+                            <option value="Lột múi cơm">Lột múi cơm</option>
+                            <option value="Sấy khô">Sấy khô</option>
+                          </select>
+                        </div>
+                        
+                        <div className="form-group">
+                          <label>Khối lượng lô hàng (tấn)</label>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            name="khoi_luong_lo_hang" 
+                            value={editData.khoi_luong_lo_hang !== null && editData.khoi_luong_lo_hang !== undefined ? editData.khoi_luong_lo_hang : ''} 
+                            onChange={handleEditChange} 
+                            placeholder="VD: 12.5" 
+                            disabled={role !== 'admin' && role !== 'production'}
+                          />
+                        </div>
+                        
+                        <div className="form-group">
+                          <label>Khối lượng đóng gói (tấn)</label>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            name="khoi_luong_dong_goi" 
+                            value={editData.khoi_luong_dong_goi !== null && editData.khoi_luong_dong_goi !== undefined ? editData.khoi_luong_dong_goi : ''} 
+                            onChange={handleEditChange} 
+                            placeholder="VD: 11.8" 
+                            disabled={role !== 'admin' && role !== 'technical'}
+                          />
+                        </div>
+                        
+                        <div className="form-group">
+                          <label>Nơi xuất khẩu</label>
+                          <input 
+                            type="text" 
+                            name="noi_xuat_khau" 
+                            value={editData.noi_xuat_khau || ''} 
+                            onChange={handleEditChange} 
+                            placeholder="VD: Trung Quốc, Hoa Kỳ" 
+                            disabled={role !== 'admin' && role !== 'technical'}
+                          />
+                        </div>
+                        
+                        <div className="form-group">
+                          <label>Tên cơ sở đóng gói</label>
+                          <input 
+                            type="text" 
+                            name="ten_co_so_dong_goi" 
+                            value={editData.ten_co_so_dong_goi || ''} 
+                            onChange={handleEditChange} 
+                            placeholder="VD: Cơ sở đóng gói Thanh Bình" 
+                            disabled={role !== 'admin' && role !== 'technical'}
+                          />
+                        </div>
+                        
+                        <div className="form-group">
+                          <label>Mã số cơ sở đóng gói (PHC)</label>
+                          <input 
+                            type="text" 
+                            name="ma_phc" 
+                            value={editData.ma_phc || ''} 
+                            onChange={handleEditChange} 
+                            placeholder="VD: VN-PHC-0002" 
+                            disabled={role !== 'admin' && role !== 'technical'}
+                          />
+                        </div>
+                        
+                        <div className="form-group">
+                          <label>Kết quả kiểm dịch</label>
+                          <select 
+                            name="ket_qua_kiem_dich" 
+                            value={editData.ket_qua_kiem_dich || ''} 
+                            onChange={handleEditChange}
+                            disabled={role !== 'admin' && role !== 'qaqc'}
+                          >
+                            <option value="">Chưa có kết quả</option>
+                            <option value="Đạt">Đạt</option>
+                            <option value="Không đạt">Không đạt</option>
+                          </select>
+                        </div>
+                      </div>
+                    </form>
+                    {activeTab.startsWith('lo-hang-') && (
+                      <div style={{ borderTop: '1px solid var(--border-color)', marginTop: '20px', paddingTop: '10px' }}>
+                        <GS1QRCode shipment={editData} />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {(() => {
+                      const step = getShipmentStep(selectedRecord);
+                      return (
+                        <div className="shipment-progress-stepper" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', padding: '16px', background: 'var(--bg-body)', borderRadius: '12px', border: '1px solid var(--border-color)', position: 'relative' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative', zIndex: 2 }}>
+                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: step.index >= 0 ? '#4f46e5' : '#cbd5e1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '700' }}>1</div>
+                            <span style={{ fontSize: '12px', marginTop: '6px', fontWeight: '600', color: step.index >= 0 ? 'var(--text-main)' : 'var(--text-muted)' }}>Tiếp nhận</span>
+                          </div>
+                          <div style={{ flex: 1, height: '2px', backgroundColor: step.index >= 1 ? '#4f46e5' : '#e2e8f0', marginTop: '-18px', zIndex: 1 }}></div>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative', zIndex: 2 }}>
+                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: step.index >= 1 ? '#4f46e5' : '#cbd5e1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '700' }}>2</div>
+                            <span style={{ fontSize: '12px', marginTop: '6px', fontWeight: '600', color: step.index >= 1 ? 'var(--text-main)' : 'var(--text-muted)' }}>Đang xử lý</span>
+                          </div>
+                          <div style={{ flex: 1, height: '2px', backgroundColor: step.index >= 2 ? (step.color === 'danger' ? '#ef4444' : '#10b981') : '#e2e8f0', marginTop: '-18px', zIndex: 1 }}></div>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative', zIndex: 2 }}>
+                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: step.index >= 2 ? (step.color === 'danger' ? '#ef4444' : '#10b981') : '#cbd5e1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '700' }}>3</div>
+                            <span style={{ fontSize: '12px', marginTop: '6px', fontWeight: '600', color: step.index >= 2 ? (step.color === 'danger' ? '#ef4444' : '#10b981') : 'var(--text-muted)' }}>{step.label}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    <table className="detail-table">
+                      <tbody>
+                        <tr>
+                          <th>Mã lô hàng (ID)</th>
+                          <td>{selectedRecord.id || <span className="empty-value">Trống</span>}</td>
+                        </tr>
+                        <tr>
+                          <th>Mã số vùng trồng (PUC)</th>
+                          <td>{selectedRecord.ma_puc || <span className="empty-value">Trống</span>}</td>
+                        </tr>
+                        <tr>
+                          <th>Địa chỉ vườn</th>
+                          <td>{selectedRecord.dia_chi_vuon || <span className="empty-value">Trống</span>}</td>
+                        </tr>
+                        <tr>
+                          <th>Tên vườn</th>
+                          <td>{selectedRecord.ten_vuon || <span className="empty-value">Trống</span>}</td>
+                        </tr>
+                        <tr>
+                          <th>Ngày thu hoạch</th>
+                          <td>{selectedRecord.ngay_thu_hoach || <span className="empty-value">Trống</span>}</td>
+                        </tr>
+                        <tr>
+                          <th>Lần phun thuốc gần nhất</th>
+                          <td>{selectedRecord.lan_phun_thuoc_gan_nhat || <span className="empty-value">Trống</span>}</td>
+                        </tr>
+                        <tr>
+                          <th>Cách ly</th>
+                          <td>{selectedRecord.cach_ly || <span className="empty-value">Trống</span>}</td>
+                        </tr>
+                        <tr>
+                          <th>Loại</th>
+                          <td>{selectedRecord.loai || <span className="empty-value">Trống</span>}</td>
+                        </tr>
+                        <tr>
+                          <th>Khối lượng lô hàng (tấn)</th>
+                          <td>{selectedRecord.khoi_luong_lo_hang !== null && selectedRecord.khoi_luong_lo_hang !== '' ? `${selectedRecord.khoi_luong_lo_hang} tấn` : <span className="empty-value">Trống</span>}</td>
+                        </tr>
+                        <tr>
+                          <th>Khối lượng đóng gói (tấn)</th>
+                          <td>{selectedRecord.khoi_luong_dong_goi !== null && selectedRecord.khoi_luong_dong_goi !== '' ? `${selectedRecord.khoi_luong_dong_goi} tấn` : <span className="empty-value">Trống</span>}</td>
+                        </tr>
+                        <tr>
+                          <th>Nơi xuất khẩu</th>
+                          <td>{selectedRecord.noi_xuat_khau || <span className="empty-value">Trống</span>}</td>
+                        </tr>
+                        <tr>
+                          <th>Tên cơ sở đóng gói</th>
+                          <td>{selectedRecord.ten_co_so_dong_goi || <span className="empty-value">Trống</span>}</td>
+                        </tr>
+                        <tr>
+                          <th>Mã số cơ sở đóng gói (PHC)</th>
+                          <td>{selectedRecord.ma_phc || <span className="empty-value">Trống</span>}</td>
+                        </tr>
+                        <tr>
+                          <th>Kết quả kiểm dịch</th>
+                          <td>
+                            {selectedRecord.ket_qua_kiem_dich ? (
+                              <span className={`quarantine-badge ${selectedRecord.ket_qua_kiem_dich === 'Đạt' ? 'passed' : 'failed'}`}>
+                                {selectedRecord.ket_qua_kiem_dich}
+                              </span>
+                            ) : (
+                              <span className="empty-value">Trống</span>
+                            )}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    {activeTab.startsWith('lo-hang-') && activeTab !== 'lo-hang-loi' && (
+                      <GS1QRCode shipment={selectedRecord} />
+                    )}
+                  </>
+                )
               )}
             </div>
             <div className="modal-footer">
@@ -1118,7 +2087,11 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
                 </>
               ) : (
                 <>
-                  <button className="btn-primary" onClick={handleEditClick} style={{ marginRight: '12px' }}>Chỉnh sửa</button>
+                  {((activeTab === 'quan-ly-hop-dong' && role === 'admin') || 
+                    (activeTab === 'lo-hang-loi' && (role === 'admin' || role === 'technical')) ||
+                    (activeTab !== 'quan-ly-hop-dong' && activeTab !== 'lo-hang-loi')) && (
+                    <button className="btn-primary" onClick={handleEditClick} style={{ marginRight: '12px' }}>Chỉnh sửa</button>
+                  )}
                   <button className="btn-secondary" onClick={handleCloseModal}>Đóng</button>
                 </>
               )}
@@ -1316,6 +2289,687 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
             <div className="modal-footer">
               <button className="btn-secondary" onClick={() => setIsCreatingShipment(false)} style={{ marginRight: '12px' }}>Hủy</button>
               <button className="btn-primary" onClick={handleShipmentSubmit}>Tạo mới</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal chi tiết kho & danh sách phiếu nhập kho */}
+      {selectedWarehouse && (
+        <div className="modal-backdrop" onClick={() => setSelectedWarehouse(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '850px' }}>
+            <div className="modal-header">
+              <h3>{isEditingWarehouse ? `Cập nhật tình trạng kho: ${selectedWarehouse.ma_kho}` : `Chi tiết kho bảo quản: ${selectedWarehouse.ma_kho}`}</h3>
+              <button className="close-btn" onClick={() => setSelectedWarehouse(null)}>&times;</button>
+            </div>
+            <div className="modal-body" style={{ padding: '20px 24px' }}>
+              {isEditingWarehouse ? (
+                <form onSubmit={handleWarehouseEditSubmit}>
+                  <div className="other-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px 20px' }}>
+                    <div className="form-group">
+                      <label>Mã kho</label>
+                      <input type="text" value={warehouseEditData.ma_kho} disabled />
+                    </div>
+                    <div className="form-group">
+                      <label>Tên kho</label>
+                      <input type="text" value={warehouseEditData.ten_kho} disabled />
+                    </div>
+                    {(role === 'qaqc' || role === 'admin') && (
+                      <>
+                        <div className="form-group">
+                          <label>Tình trạng vệ sinh (Đạt / Không đạt)*</label>
+                          <select 
+                            name="tinh_trang_ve_sinh" 
+                            value={warehouseEditData.tinh_trang_ve_sinh || ''} 
+                            onChange={handleWarehouseEditChange}
+                            required
+                          >
+                            <option value="">-- Chọn tình trạng --</option>
+                            <option value="Đạt">Đạt</option>
+                            <option value="Không đạt">Không đạt</option>
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label>Nhiệt độ hiện tại (°C)*</label>
+                          <input 
+                            type="number" 
+                            name="nhiet_do" 
+                            value={warehouseEditData.nhiet_do || ''} 
+                            onChange={handleWarehouseEditChange} 
+                            required 
+                          />
+                        </div>
+                      </>
+                    )}
+                    {(role === 'logistics' || role === 'admin') && (
+                      <div className="form-group">
+                        <label>Sức chứa còn trống (tấn)*</label>
+                        <input 
+                          type="number" 
+                          step="0.01"
+                          name="suc_chua_con_trong" 
+                          value={warehouseEditData.suc_chua_con_trong || ''} 
+                          onChange={handleWarehouseEditChange} 
+                          required 
+                        />
+                      </div>
+                    )}
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                    <div style={{ padding: '16px', background: 'var(--bg-body)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Loại kho</span>
+                      <h4 style={{ margin: '4px 0 0 0', fontSize: '16px', color: 'var(--text-main)' }}>
+                        {selectedWarehouse.loai_kho === 'Đông' ? 'Kho đông lạnh' : 'Kho bảo mát'}
+                      </h4>
+                    </div>
+                    <div style={{ padding: '16px', background: 'var(--bg-body)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Sức chứa (Còn trống / Tối đa)</span>
+                      <h4 style={{ margin: '4px 0 0 0', fontSize: '16px', color: 'var(--text-main)' }}>
+                        {selectedWarehouse.suc_chua_con_trong} / {selectedWarehouse.suc_chua_lon_nhat} tấn
+                      </h4>
+                    </div>
+                    <div style={{ padding: '16px', background: 'var(--bg-body)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Vệ sinh & Nhiệt độ</span>
+                      <h4 style={{ margin: '4px 0 0 0', fontSize: '16px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className={`badge-class ${selectedWarehouse.tinh_trang_ve_sinh === 'Đạt' ? 'success' : 'danger'}`}>
+                          Vệ sinh: {selectedWarehouse.tinh_trang_ve_sinh}
+                        </span>
+                        {selectedWarehouse.nhiet_do !== undefined && (
+                          <span style={{ fontSize: '13px', fontWeight: 'normal' }}>
+                            ({selectedWarehouse.nhiet_do}°C)
+                          </span>
+                        )}
+                      </h4>
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <h4 style={{ margin: 0, color: 'var(--text-main)' }}>Danh sách phiếu nhập kho</h4>
+                      {(role === 'admin' || role === 'technical') && (
+                        <button className="btn-primary" onClick={handleCreateReceiptClick} style={{ padding: '6px 12px', fontSize: '13px' }}>
+                          + Tạo phiếu nhập kho
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div style={{ overflowX: 'auto', maxHeight: '250px' }}>
+                      <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ background: 'var(--bg-body)' }}>
+                            <th style={{ padding: '10px' }}>Mã phiếu</th>
+                            <th style={{ padding: '10px' }}>Mã lô hàng</th>
+                            <th style={{ padding: '10px' }}>Loại kho</th>
+                            <th style={{ padding: '10px' }}>Khối lượng (tấn)</th>
+                            <th style={{ padding: '10px' }}>Ngày nhập</th>
+                            <th style={{ padding: '10px' }}>Vị trí lưu trữ</th>
+                            <th style={{ padding: '10px', width: '80px' }}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {warehouseReceipts.map((receipt) => (
+                            <tr key={receipt.ma_phieu} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                              <td style={{ padding: '10px' }}>{receipt.ma_phieu}</td>
+                              <td style={{ padding: '10px' }}>{receipt.id_lo_hang}</td>
+                              <td style={{ padding: '10px' }}>
+                                {receipt.loai_kho_lo_hang === 'Đông' ? 'Kho đông lạnh' : 'Kho bảo mát'}
+                              </td>
+                              <td style={{ padding: '10px' }}>
+                                {editingReceiptId === receipt.ma_phieu ? (
+                                  <input 
+                                    type="number" 
+                                    step="0.01"
+                                    name="khoi_luong" 
+                                    value={receiptEditData.khoi_luong} 
+                                    onChange={handleReceiptEditChange} 
+                                    style={{ width: '80px', padding: '4px' }}
+                                  />
+                                ) : (
+                                  `${receipt.khoi_luong} tấn`
+                                )}
+                              </td>
+                              <td style={{ padding: '10px' }}>
+                                {editingReceiptId === receipt.ma_phieu ? (
+                                  <input 
+                                    type="date" 
+                                    name="ngay_nhap" 
+                                    value={receiptEditData.ngay_nhap} 
+                                    onChange={handleReceiptEditChange} 
+                                    style={{ padding: '4px' }}
+                                  />
+                                ) : (
+                                  receipt.ngay_nhap
+                                )}
+                              </td>
+                              <td style={{ padding: '10px' }}>
+                                {editingReceiptId === receipt.ma_phieu ? (
+                                  <input 
+                                    type="text" 
+                                    name="vi_tri_luu_tru" 
+                                    value={receiptEditData.vi_tri_luu_tru} 
+                                    onChange={handleReceiptEditChange} 
+                                    style={{ width: '100px', padding: '4px' }}
+                                  />
+                                ) : (
+                                  receipt.vi_tri_luu_tru || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Chưa rõ</span>
+                                )}
+                              </td>
+                              <td style={{ padding: '10px', display: 'flex', gap: '6px' }}>
+                                {editingReceiptId === receipt.ma_phieu ? (
+                                  <>
+                                    <button 
+                                      className="btn-primary" 
+                                      onClick={handleReceiptEditSubmit}
+                                      style={{ padding: '2px 6px', fontSize: '11px' }}
+                                    >
+                                      Lưu
+                                    </button>
+                                    <button 
+                                      className="btn-secondary" 
+                                      onClick={() => setEditingReceiptId(null)}
+                                      style={{ padding: '2px 6px', fontSize: '11px' }}
+                                    >
+                                      Hủy
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    {(role === 'admin' || role === 'technical') && (
+                                      <button 
+                                        className="icon-btn" 
+                                        title="Chỉnh sửa phiếu" 
+                                        onClick={() => handleEditReceiptClick(receipt)}
+                                        style={{ padding: '4px' }}
+                                      >
+                                        ✏️
+                                      </button>
+                                    )}
+                                    {role === 'admin' && (
+                                      <button 
+                                        className="icon-btn" 
+                                        title="Xóa phiếu" 
+                                        onClick={() => handleDeleteReceipt(receipt.ma_phieu)}
+                                        style={{ padding: '4px' }}
+                                      >
+                                        🗑️
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                          {warehouseReceipts.length === 0 && (
+                            <tr>
+                              <td colSpan="7" style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)' }}>
+                                Chưa có phiếu nhập kho nào
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="modal-footer">
+              {isEditingWarehouse ? (
+                <>
+                  <button className="btn-secondary" onClick={() => setIsEditingWarehouse(false)} style={{ marginRight: '12px' }}>Hủy</button>
+                  <button className="btn-primary" onClick={handleWarehouseEditSubmit}>Lưu thay đổi</button>
+                </>
+              ) : (
+                <>
+                  {(role === 'admin' || role === 'qaqc' || role === 'technical' || role === 'logistics') && (
+                    <button className="btn-primary" onClick={() => {
+                      setWarehouseEditData({ ...selectedWarehouse });
+                      setIsEditingWarehouse(true);
+                    }} style={{ marginRight: '12px' }}>
+                      Cập nhật tình trạng kho
+                    </button>
+                  )}
+                  <button className="btn-secondary" onClick={() => setSelectedWarehouse(null)}>Đóng</button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal tạo phiếu nhập kho mới */}
+      {isCreatingReceipt && (
+        <div className="modal-backdrop" onClick={() => setIsCreatingReceipt(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h3>Tạo phiếu nhập kho</h3>
+              <button className="close-btn" onClick={() => setIsCreatingReceipt(false)}>&times;</button>
+            </div>
+            <div className="modal-body" style={{ padding: '20px 24px' }}>
+              <form onSubmit={handleReceiptSubmit}>
+                <div className="form-group" style={{ marginBottom: '14px' }}>
+                  <label>Mã phiếu nhập kho*</label>
+                  <input type="text" name="ma_phieu" value={newReceipt.ma_phieu} onChange={handleReceiptChange} required />
+                </div>
+                <div className="form-group" style={{ marginBottom: '14px' }}>
+                  <label>Lô hàng đã kiểm dịch đạt*</label>
+                  <select name="id_lo_hang" value={newReceipt.id_lo_hang} onChange={handleReceiptChange} required>
+                    <option value="">-- Chọn lô hàng --</option>
+                    {traceabilityList
+                      .filter(t => t.ket_qua_kiem_dich === 'Đạt')
+                      .map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.id} ({t.ten_vuon || 'Vườn không tên'} - {t.khoi_luong_dong_goi || t.khoi_luong_lo_hang || 0} tấn)
+                        </option>
+                      ))
+                    }
+                  </select>
+                </div>
+                <div className="form-group" style={{ marginBottom: '14px' }}>
+                  <label>Khối lượng nhập kho (tấn)*</label>
+                  <input type="number" step="0.01" name="khoi_luong" value={newReceipt.khoi_luong} onChange={handleReceiptChange} required />
+                </div>
+                <div className="form-group" style={{ marginBottom: '14px' }}>
+                  <label>Ngày nhập kho*</label>
+                  <input type="date" name="ngay_nhap" value={newReceipt.ngay_nhap} onChange={handleReceiptChange} required />
+                </div>
+                <div className="form-group" style={{ marginBottom: '14px' }}>
+                  <label>Vị trí lưu trữ trong kho</label>
+                  <input type="text" name="vi_tri_luu_tru" value={newReceipt.vi_tri_luu_tru} onChange={handleReceiptChange} placeholder="VD: Khu A, Kệ 2" />
+                </div>
+              </form>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setIsCreatingReceipt(false)} style={{ marginRight: '12px' }}>Hủy</button>
+              <button className="btn-primary" onClick={handleReceiptSubmit}>Tạo phiếu</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {isCreatingVungTrong && (
+        <div className="modal-backdrop" onClick={() => setIsCreatingVungTrong(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h3>Tạo mới vùng trồng nguyên liệu</h3>
+              <button className="close-btn" onClick={() => setIsCreatingVungTrong(false)}>&times;</button>
+            </div>
+            <div className="modal-body" style={{ padding: '20px 24px' }}>
+              <form onSubmit={handleVungTrongSubmit}>
+                <div className="other-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px 20px' }}>
+                  <div className="form-group">
+                    <label>Mã số vùng trồng (PUC)*</label>
+                    <input 
+                      type="text" 
+                      name="ma_puc" 
+                      value={newVungTrong.ma_puc} 
+                      onChange={(e) => setNewVungTrong(prev => ({ ...prev, ma_puc: e.target.value }))} 
+                      placeholder="VD: TG-PUC-0001" 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Đại diện / Chủ vườn*</label>
+                    <input 
+                      type="text" 
+                      name="ten" 
+                      value={newVungTrong.ten} 
+                      onChange={(e) => setNewVungTrong(prev => ({ ...prev, ten: e.target.value }))} 
+                      placeholder="VD: Nguyễn Văn A" 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Tên vườn*</label>
+                    <input 
+                      type="text" 
+                      name="ten_vuon" 
+                      value={newVungTrong.ten_vuon} 
+                      onChange={(e) => setNewVungTrong(prev => ({ ...prev, ten_vuon: e.target.value }))} 
+                      placeholder="VD: Vườn Long Hải" 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Địa chỉ vùng trồng*</label>
+                    <input 
+                      type="text" 
+                      name="dia_chi" 
+                      value={newVungTrong.dia_chi} 
+                      onChange={(e) => setNewVungTrong(prev => ({ ...prev, dia_chi: e.target.value }))} 
+                      placeholder="VD: Cai Lậy, Tiền Giang" 
+                      required 
+                    />
+                  </div>
+                </div>
+              </form>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setIsCreatingVungTrong(false)} style={{ marginRight: '12px' }}>Hủy</button>
+              <button className="btn-primary" onClick={handleVungTrongSubmit}>Tạo mới</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isCreatingCustomer && (
+        <div className="modal-backdrop" onClick={() => setIsCreatingCustomer(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
+            <div className="modal-header">
+              <h3>Tạo mới khách hàng / Doanh nghiệp</h3>
+              <button className="close-btn" onClick={() => setIsCreatingCustomer(false)}>&times;</button>
+            </div>
+            <div className="modal-body" style={{ padding: '20px 24px' }}>
+              <form onSubmit={handleCustomerSubmit}>
+                <div className="other-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px 20px' }}>
+                  <div className="form-group">
+                    <label>Mã khách hàng*</label>
+                    <input 
+                      type="text" 
+                      name="ma_kh" 
+                      value={newCustomer.ma_kh} 
+                      onChange={(e) => setNewCustomer(prev => ({ ...prev, ma_kh: e.target.value }))} 
+                      placeholder="VD: KH001" 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Tên khách hàng / Doanh nghiệp*</label>
+                    <input 
+                      type="text" 
+                      name="ten_kh" 
+                      value={newCustomer.ten_kh} 
+                      onChange={(e) => setNewCustomer(prev => ({ ...prev, ten_kh: e.target.value }))} 
+                      placeholder="VD: Công ty TNHH Trái Cây Việt" 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Địa chỉ</label>
+                    <input 
+                      type="text" 
+                      name="dia_chi" 
+                      value={newCustomer.dia_chi} 
+                      onChange={(e) => setNewCustomer(prev => ({ ...prev, dia_chi: e.target.value }))} 
+                      placeholder="VD: Quận 1, TP. Hồ Chí Minh" 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Quốc gia*</label>
+                    <input 
+                      type="text" 
+                      name="quoc_gia" 
+                      value={newCustomer.quoc_gia} 
+                      onChange={(e) => setNewCustomer(prev => ({ ...prev, quoc_gia: e.target.value }))} 
+                      placeholder="VD: Việt Nam" 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Số điện thoại</label>
+                    <input 
+                      type="text" 
+                      name="sdt" 
+                      value={newCustomer.sdt} 
+                      onChange={(e) => setNewCustomer(prev => ({ ...prev, sdt: e.target.value }))} 
+                      placeholder="VD: 0987654321" 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Email liên hệ</label>
+                    <input 
+                      type="email" 
+                      name="email" 
+                      value={newCustomer.email} 
+                      onChange={(e) => setNewCustomer(prev => ({ ...prev, email: e.target.value }))} 
+                      placeholder="VD: contact@traicayviet.vn" 
+                    />
+                  </div>
+                </div>
+              </form>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setIsCreatingCustomer(false)} style={{ marginRight: '12px' }}>Hủy</button>
+              <button className="btn-primary" onClick={handleCustomerSubmit}>Tạo mới</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isCreatingContract && (
+        <div className="modal-backdrop" onClick={() => setIsCreatingContract(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
+            <div className="modal-header">
+              <h3>Tạo mới hợp đồng mua bán</h3>
+              <button className="close-btn" onClick={() => setIsCreatingContract(false)}>&times;</button>
+            </div>
+            <div className="modal-body" style={{ padding: '20px 24px' }}>
+              <form onSubmit={handleContractSubmit}>
+                <div className="other-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px 20px' }}>
+                  <div className="form-group">
+                    <label>Số hợp đồng*</label>
+                    <input 
+                      type="text" 
+                      name="so_hop_dong" 
+                      value={newContract.so_hop_dong} 
+                      onChange={(e) => setNewContract(prev => ({ ...prev, so_hop_dong: e.target.value }))} 
+                      placeholder="VD: HD-2026-005" 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Tên đối tác hợp đồng*</label>
+                    <input 
+                      type="text" 
+                      name="ten_doi_tac" 
+                      value={newContract.ten_doi_tac} 
+                      onChange={(e) => setNewContract(prev => ({ ...prev, ten_doi_tac: e.target.value }))} 
+                      placeholder="VD: HTX Bình Minh" 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Loại hợp đồng*</label>
+                    <select 
+                      name="loai_hop_dong" 
+                      value={newContract.loai_hop_dong} 
+                      onChange={(e) => setNewContract(prev => ({ ...prev, loai_hop_dong: e.target.value }))} 
+                      required
+                    >
+                      <option value="">-- Chọn loại --</option>
+                      <option value="Hợp đồng thu mua">Hợp đồng thu mua</option>
+                      <option value="Hợp đồng xuất khẩu">Hợp đồng xuất khẩu</option>
+                      <option value="Hợp đồng nguyên tắc vận chuyển">Hợp đồng nguyên tắc vận chuyển</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Giá trị hợp đồng*</label>
+                    <input 
+                      type="text" 
+                      name="gia_tri" 
+                      value={newContract.gia_tri} 
+                      onChange={(e) => setNewContract(prev => ({ ...prev, gia_tri: e.target.value }))} 
+                      placeholder="VD: 500,000,000đ" 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Ngày ký*</label>
+                    <input 
+                      type="date" 
+                      name="ngay_ky" 
+                      value={newContract.ngay_ky} 
+                      onChange={(e) => setNewContract(prev => ({ ...prev, ngay_ky: e.target.value }))} 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Trạng thái*</label>
+                    <select 
+                      name="trang_thai" 
+                      value={newContract.trang_thai} 
+                      onChange={(e) => setNewContract(prev => ({ ...prev, trang_thai: e.target.value }))} 
+                      required
+                    >
+                      <option value="Đang chuẩn bị">Đang chuẩn bị</option>
+                      <option value="Đang thực hiện">Đang thực hiện</option>
+                      <option value="Đang hiệu lực">Đang hiệu lực</option>
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label>Khách hàng liên kết (Mã KH)</label>
+                    <select 
+                      name="ma_kh" 
+                      value={newContract.ma_kh} 
+                      onChange={(e) => setNewContract(prev => ({ ...prev, ma_kh: e.target.value }))}
+                    >
+                      <option value="">-- Chọn khách hàng (tùy chọn) --</option>
+                      {(customersList || []).map(kh => (
+                        <option key={kh.ma_kh} value={kh.ma_kh}>
+                          {kh.ma_kh} - {kh.ten_kh} ({kh.quoc_gia})
+                        </option>
+                      ))}
+                    </select>
+                    <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>Liên kết hợp đồng với khách hàng trong hệ thống qua mã KH</small>
+                  </div>
+                </div>
+              </form>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setIsCreatingContract(false)} style={{ marginRight: '12px' }}>Hủy</button>
+              <button className="btn-primary" onClick={handleContractSubmit}>Tạo mới</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {isCreatingFaulty && (
+        <div className="modal-backdrop" onClick={() => setIsCreatingFaulty(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
+            <div className="modal-header">
+              <h3>Tạo mã lô hàng lỗi</h3>
+              <button className="close-btn" onClick={() => setIsCreatingFaulty(false)}>&times;</button>
+            </div>
+            <div className="modal-body" style={{ padding: '20px 24px' }}>
+              <form onSubmit={handleFaultySubmit}>
+                <div className="other-info-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px 20px' }}>
+                  <div className="form-group">
+                    <label>Mã lỗi*</label>
+                    <input 
+                      type="text" 
+                      name="ma_loi" 
+                      value={newFaulty.ma_loi} 
+                      onChange={(e) => setNewFaulty(prev => ({ ...prev, ma_loi: e.target.value }))} 
+                      placeholder="VD: LHL-101" 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Lô hàng bị phát hiện lỗi*</label>
+                    <select 
+                      name="id_lo_hang" 
+                      value={newFaulty.id_lo_hang} 
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        const matchingShipment = traceabilityList.find(t => t.id === selectedId);
+                        setNewFaulty(prev => ({
+                          ...prev,
+                          id_lo_hang: selectedId,
+                          ma_puc: matchingShipment ? matchingShipment.ma_puc : ''
+                        }));
+                      }} 
+                      required
+                    >
+                      <option value="">-- Chọn lô hàng --</option>
+                      {traceabilityList
+                        .filter(t => t.ket_qua_kiem_dich === 'Không đạt')
+                        .map(t => (
+                          <option key={t.id} value={t.id}>
+                            {t.id} ({t.ten_vuon || 'Vườn không tên'} - PUC: {t.ma_puc})
+                          </option>
+                        ))
+                      }
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Mã vùng trồng (PUC)*</label>
+                    <input 
+                      type="text" 
+                      name="ma_puc" 
+                      value={newFaulty.ma_puc} 
+                      disabled 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Loại lỗi*</label>
+                    <select 
+                      name="loai_loi" 
+                      value={newFaulty.loai_loi} 
+                      onChange={(e) => setNewFaulty(prev => ({ ...prev, loai_loi: e.target.value }))} 
+                      required
+                    >
+                      <option value="">-- Chọn loại lỗi --</option>
+                      <option value="Tồn đọng dư lượng hóa chất">Tồn đọng dư lượng hóa chất</option>
+                      <option value="Phát hiện sinh vật KDTV">Phát hiện sinh vật KDTV</option>
+                      <option value="Lỗi tem nhãn / Bao bì">Lỗi tem nhãn / Bao bì</option>
+                      <option value="Khác">Khác</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Ngày phát hiện*</label>
+                    <input 
+                      type="date" 
+                      name="ngay_phat_hien" 
+                      value={newFaulty.ngay_phat_hien} 
+                      onChange={(e) => setNewFaulty(prev => ({ ...prev, ngay_phat_hien: e.target.value }))} 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Người phụ trách xử lý*</label>
+                    <input 
+                      type="text" 
+                      name="nguoi_phu_trach" 
+                      value={newFaulty.nguoi_phu_trach} 
+                      onChange={(e) => setNewFaulty(prev => ({ ...prev, nguoi_phu_trach: e.target.value }))} 
+                      placeholder="VD: Nguyễn Văn A"
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Trạng thái xử lý*</label>
+                    <select 
+                      name="trang_thai" 
+                      value={newFaulty.trang_thai} 
+                      onChange={(e) => setNewFaulty(prev => ({ ...prev, trang_thai: e.target.value }))} 
+                      required
+                    >
+                      <option value="Đang xử lý">Đang xử lý</option>
+                      <option value="Đã xử lý xong">Đã xử lý xong</option>
+                      <option value="Đã hủy">Đã hủy</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Kết quả kiểm tra lại*</label>
+                    <select 
+                      name="ket_qua_kiem_tra_lai" 
+                      value={newFaulty.ket_qua_kiem_tra_lai} 
+                      onChange={(e) => setNewFaulty(prev => ({ ...prev, ket_qua_kiem_tra_lai: e.target.value }))} 
+                      required
+                    >
+                      <option value="Chưa kiểm tra lại">Chưa kiểm tra lại</option>
+                      <option value="Đạt">Đạt</option>
+                      <option value="Không đạt">Không đạt</option>
+                    </select>
+                  </div>
+                </div>
+              </form>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setIsCreatingFaulty(false)} style={{ marginRight: '12px' }}>Hủy</button>
+              <button className="btn-primary" onClick={handleFaultySubmit}>Tạo mới</button>
             </div>
           </div>
         </div>

@@ -176,21 +176,6 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
           </ul>
         </div>
 
-        {/* Vận chuyển */}
-        <div 
-          className={`nav-item ${activeTab === 'van-chuyen' ? 'active' : ''}`}
-          onClick={() => setActiveTab('van-chuyen')}
-        >
-          <span className="nav-icon">
-            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="1" y="3" width="15" height="13" />
-              <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
-              <circle cx="5.5" cy="18.5" r="2.5" />
-              <circle cx="18.5" cy="18.5" r="2.5" />
-            </svg>
-          </span>
-          <span className="nav-text">Vận chuyển</span>
-        </div>
 
         {/* QUẢN LÝ */}
         <div className="sidebar-category">QUẢN LÝ</div>

@@ -1,24 +1,30 @@
 const { pool } = require('./config/db');
 
 const customers = [
-  { ma_kh: "KH001", ten_kh: "Guangzhou Fruit Import & Export Co., Ltd.", quoc_gia: "Trung Quốc" },
-  { ma_kh: "KH002", ten_kh: "Shenzhen Fresh Trade Co.", quoc_gia: "Trung Quốc" },
-  { ma_kh: "KH003", ten_kh: "Shanghai Xinlian Import Co.", quoc_gia: "Trung Quốc" },
-  { ma_kh: "KH004", ten_kh: "Tokyo Fresh Fruits Co., Ltd.", quoc_gia: "Nhật Bản" },
-  { ma_kh: "KH005", ten_kh: "Seoul Mart Corporation", quoc_gia: "Hàn Quốc" }
+  { ma_kh: "KH001", ten_kh: "Guangzhou Fruit Import & Export Co., Ltd.", quoc_gia: "Trung Quốc", dia_chi: "No. 88, Fruit Market St, Guangzhou", sdt: "+86-20-12345678", email: "contact@guangzhoufruit.com" },
+  { ma_kh: "KH002", ten_kh: "Shenzhen Fresh Trade Co.", quoc_gia: "Trung Quốc", dia_chi: "Room 402, Fresh Building, Futian Dist, Shenzhen", sdt: "+86-755-87654321", email: "info@szfresh.cn" },
+  { ma_kh: "KH003", ten_kh: "Shanghai Xinlian Import Co.", quoc_gia: "Trung Quốc", dia_chi: "Floor 12, Xinlian Tower, Pudong, Shanghai", sdt: "+86-21-99887766", email: "trade@xinlian-sh.com" },
+  { ma_kh: "KH004", ten_kh: "Tokyo Fresh Fruits Co., Ltd.", quoc_gia: "Nhật Bản", dia_chi: "5-10 Tsukiji, Chuo-ku, Tokyo", sdt: "+81-3-3541-1111", email: "orders@tokyofresh.co.jp" },
+  { ma_kh: "KH005", ten_kh: "Seoul Mart Corporation", quoc_gia: "Hàn Quốc", dia_chi: "123 Yeouido-dong, Yeongdeungpo-gu, Seoul", sdt: "+82-2-789-0123", email: "support@seoulmart.co.kr" }
+];
+
+const warehouses = [
+  { ma_kho: "KHO-01", ten_kho: "Kho lạnh trung tâm Cái Bè", loai_kho: "Đông", suc_chua_lon_nhat: 500, suc_chua_con_trong: 280, tinh_trang_ve_sinh: "Đạt", nhiet_do: -18 },
+  { ma_kho: "KHO-02", ten_kho: "Kho trung chuyển Cát Lái", loai_kho: "Mát", suc_chua_lon_nhat: 200, suc_chua_con_trong: 150, tinh_trang_ve_sinh: "Đạt", nhiet_do: 4 },
+  { ma_kho: "KHO-03", ten_kho: "Kho bao bì Cao Lãnh", loai_kho: "Mát", suc_chua_lon_nhat: 100, suc_chua_con_trong: 65, tinh_trang_ve_sinh: "Chưa đạt", nhiet_do: 10 }
 ];
 
 const personnel = [
-  { ma_nv: "NV001", ten_nv: "Nguyễn Văn An", tuoi: 34, suc_khoe: "Tốt", dang_tap_huan: "Có" },
-  { ma_nv: "NV002", ten_nv: "Trần Thị Bình", tuoi: 28, suc_khoe: "Tốt", dang_tap_huan: "Không" },
-  { ma_nv: "NV003", ten_nv: "Lê Hoàng Chi", tuoi: 42, suc_khoe: "Khá", dang_tap_huan: "Có" },
-  { ma_nv: "NV004", ten_nv: "Phạm Quốc Đạt", tuoi: 31, suc_khoe: "Tốt", dang_tap_huan: "Có" },
-  { ma_nv: "NV005", ten_nv: "Hoàng Kim Anh", tuoi: 26, suc_khoe: "Tốt", dang_tap_huan: "Không" },
-  { ma_nv: "NV006", ten_nv: "Vũ Tiến Đức", tuoi: 39, suc_khoe: "Khá", dang_tap_huan: "Không" },
-  { ma_nv: "NV007", ten_nv: "Ngô Quốc Huy", tuoi: 35, suc_khoe: "Bình thường", dang_tap_huan: "Có" },
-  { ma_nv: "NV008", ten_nv: "Đỗ Minh Khang", tuoi: 45, suc_khoe: "Tốt", dang_tap_huan: "Có" },
-  { ma_nv: "NV009", ten_nv: "Bùi Phương Linh", tuoi: 29, suc_khoe: "Tốt", dang_tap_huan: "Không" },
-  { ma_nv: "NV010", ten_nv: "Nguyễn Tiến Dũng", tuoi: 37, suc_khoe: "Khá", dang_tap_huan: "Có" }
+  { ma_nv: "NV001", ten_nv: "Nguyễn Văn An", tuoi: 34, suc_khoe: "Tốt", dang_tap_huan: "Có", bo_phan: "Phòng Quản lý Chất lượng", chuc_vu: "Giám sát đóng gói", sdt: "0981234501", email: "an.nguyen@namdogroup.vn", vung_trong_phu_trach: "BG-PUC-0001", kho_phu_trach: "KHO-01", kiem_dinh_chat_luong: "Đạt chuẩn xuất khẩu", ket_qua_cong_viec: "Tích cực, hoàn thành đúng tiến độ đóng gói" },
+  { ma_nv: "NV002", ten_nv: "Trần Thị Bình", tuoi: 28, suc_khoe: "Tốt", dang_tap_huan: "Không", bo_phan: "Phòng Sản xuất", chuc_vu: "Nhân viên vận hành", sdt: "0981234502", email: "binh.tran@namdogroup.vn", vung_trong_phu_trach: "BG-PUC-0002", kho_phu_trach: "KHO-02", kiem_dinh_chat_luong: "Không áp dụng", ket_qua_cong_viec: "Đảm bảo vận hành dây chuyền ổn định" },
+  { ma_nv: "NV003", ten_nv: "Lê Hoàng Chi", tuoi: 42, suc_khoe: "Khá", dang_tap_huan: "Có", bo_phan: "Phòng Kỹ thuật", chuc_vu: "Kỹ thuật viên thực địa", sdt: "0981234503", email: "chi.le@namdogroup.vn", vung_trong_phu_trach: "HG-PUC-0001", kho_phu_trach: "Chưa phân công", kiem_dinh_chat_luong: "Đạt chuẩn VietGAP", ket_qua_cong_viec: "Hỗ trợ nhà vườn khắc phục sự cố sâu bệnh tốt" },
+  { ma_nv: "NV004", ten_nv: "Phạm Quốc Đạt", tuoi: 31, suc_khoe: "Tốt", dang_tap_huan: "Có", bo_phan: "Phòng QA/QC", chuc_vu: "Kiểm định viên", sdt: "0981234504", email: "dat.pham@namdogroup.vn", vung_trong_phu_trach: "HG-PUC-0002", kho_phu_trach: "KHO-01", kiem_dinh_chat_luong: "Giám định dư lượng thuốc đạt chuẩn", ket_qua_cong_viec: "Kiểm soát tốt chất lượng đầu vào của lô hàng" },
+  { ma_nv: "NV005", ten_nv: "Hoàng Kim Anh", tuoi: 26, suc_khoe: "Tốt", dang_tap_huan: "Không", bo_phan: "Phòng Kỹ thuật", chuc_vu: "Kỹ thuật viên thực địa", sdt: "0981234505", email: "anh.hoang@namdogroup.vn", vung_trong_phu_trach: "TG-PUC-0001", kho_phu_trach: "Chưa phân công", kiem_dinh_chat_luong: "Không áp dụng", ket_qua_cong_viec: "Ghi chép đầy đủ nhật ký bón phân và phun thuốc" },
+  { ma_nv: "NV006", ten_nv: "Vũ Tiến Đức", tuoi: 39, suc_khoe: "Khá", dang_tap_huan: "Không", bo_phan: "Phòng Sản xuất", chuc_vu: "Nhân viên kho", sdt: "0981234506", email: "duc.vu@namdogroup.vn", vung_trong_phu_trach: "TG-PUC-0002", kho_phu_trach: "KHO-03", kiem_dinh_chat_luong: "Không áp dụng", ket_qua_cong_viec: "Sắp xếp kho bao bì gọn gàng, kiểm kho chính xác" },
+  { ma_nv: "NV007", ten_nv: "Ngô Quốc Huy", tuoi: 35, suc_khoe: "Bình thường", dang_tap_huan: "Có", bo_phan: "Phòng Quản lý Chất lượng", chuc_vu: "Giám sát đóng gói", sdt: "0981234507", email: "huy.ngo@namdogroup.vn", vung_trong_phu_trach: "BG-PUC-0003", kho_phu_trach: "KHO-02", kiem_dinh_chat_luong: "Đạt chuẩn xuất khẩu", ket_qua_cong_viec: "Đảm bảo đúng quy cách đóng gói cho thị trường Hàn Quốc" },
+  { ma_nv: "NV008", ten_nv: "Đỗ Minh Khang", tuoi: 45, suc_khoe: "Tốt", dang_tap_huan: "Có", bo_phan: "Phòng Kỹ thuật", chuc_vu: "Kỹ thuật viên thực địa", sdt: "0981234508", email: "khang.do@namdogroup.vn", vung_trong_phu_trach: "LA-PUC-0001", kho_phu_trach: "Chưa phân công", kiem_dinh_chat_luong: "Đạt chuẩn hữu cơ", ket_qua_cong_viec: "Khảo sát và lập báo cáo kỹ thuật đúng thời hạn" },
+  { ma_nv: "NV009", ten_nv: "Bùi Phương Linh", tuoi: 29, suc_khoe: "Tốt", dang_tap_huan: "Không", bo_phan: "Phòng QA/QC", chuc_vu: "Kiểm định viên", sdt: "0981234509", email: "linh.bui@namdogroup.vn", vung_trong_phu_trach: "LA-PUC-0002", kho_phu_trach: "KHO-01", kiem_dinh_chat_luong: "Kiểm dịch thực vật đạt 100%", ket_qua_cong_viec: "Phát hiện nhanh và xử lý kịp thời lô hàng bị lỗi kiểm dịch" },
+  { ma_nv: "NV010", ten_nv: "Nguyễn Tiến Dũng", tuoi: 37, suc_khoe: "Khá", dang_tap_huan: "Có", bo_phan: "Phòng Sản xuất", chuc_vu: "Nhân viên vận hành", sdt: "0981234510", email: "dung.nguyen@namdogroup.vn", vung_trong_phu_trach: "HG-PUC-0003", kho_phu_trach: "KHO-02", kiem_dinh_chat_luong: "Không áp dụng", ket_qua_cong_viec: "Vận hành hệ thống cấp đông nhanh đạt công suất" }
 ];
 
 const traceability = [
@@ -829,16 +835,39 @@ async function seed() {
     console.log('Starting seed process...');
 
     // Drop tables if they exist
+    await pool.query('DROP TABLE IF EXISTS phieu_nhap_kho;');
+    await pool.query('DROP TABLE IF EXISTS kho_bao_quan;');
+    await pool.query('DROP TABLE IF EXISTS hop_dong;');
+    await pool.query('DROP TABLE IF EXISTS hang_loi;');
     await pool.query('DROP TABLE IF EXISTS truy_xuat_nguon_goc;');
+    await pool.query('DROP TABLE IF EXISTS vung_trong;');
     await pool.query('DROP TABLE IF EXISTS nhan_vien;');
     await pool.query('DROP TABLE IF EXISTS khach_hang;');
 
     // Create tables
     await pool.query(`
+      CREATE TABLE hop_dong (
+        so_hop_dong VARCHAR(50) PRIMARY KEY,
+        ten_doi_tac VARCHAR(100) NOT NULL,
+        loai_hop_dong VARCHAR(50) NOT NULL,
+        gia_tri VARCHAR(50) NOT NULL,
+        ngay_ky VARCHAR(10) NOT NULL,
+        trang_thai VARCHAR(50) NOT NULL,
+        tiens_do_giao_hang TEXT,
+        vi_pham TEXT,
+        phu_luc TEXT,
+        tinh_trang_thanh_toan TEXT
+      );
+    `);
+    console.log('Created table hop_dong');
+    await pool.query(`
       CREATE TABLE khach_hang (
         ma_kh VARCHAR(10) PRIMARY KEY,
         ten_kh VARCHAR(100) NOT NULL,
-        quoc_gia VARCHAR(50) NOT NULL
+        dia_chi TEXT,
+        quoc_gia VARCHAR(50) NOT NULL,
+        sdt VARCHAR(20),
+        email VARCHAR(100)
       );
     `);
     console.log('Created table khach_hang');
@@ -849,17 +878,60 @@ async function seed() {
         ten_nv VARCHAR(100) NOT NULL,
         tuoi INT,
         suc_khoe VARCHAR(100),
-        dang_tap_huan VARCHAR(10)
+        dang_tap_huan VARCHAR(10),
+        bo_phan VARCHAR(100),
+        chuc_vu VARCHAR(100),
+        sdt VARCHAR(20),
+        email VARCHAR(100),
+        vung_trong_phu_trach VARCHAR(50),
+        kho_phu_trach VARCHAR(50),
+        kiem_dinh_chat_luong VARCHAR(100),
+        ket_qua_cong_viec TEXT
       );
     `);
     console.log('Created table nhan_vien');
 
     await pool.query(`
+      CREATE TABLE vung_trong (
+        ma_puc VARCHAR(50) PRIMARY KEY,
+        ten VARCHAR(100) NOT NULL,
+        ten_vuon VARCHAR(100) NOT NULL,
+        dia_chi TEXT NOT NULL
+      );
+    `);
+    console.log('Created table vung_trong');
+
+    await pool.query(`
+      CREATE TABLE hang_loi (
+        ma_loi VARCHAR(20) PRIMARY KEY,
+        id_lo_hang VARCHAR(10) REFERENCES truy_xuat_nguon_goc(id) ON DELETE CASCADE,
+        ma_puc VARCHAR(50) REFERENCES vung_trong(ma_puc) ON DELETE CASCADE,
+        loai_loi VARCHAR(100) NOT NULL,
+        ngay_phat_hien VARCHAR(10) NOT NULL,
+        nguoi_phu_trach VARCHAR(100) NOT NULL,
+        trang_thai VARCHAR(50) DEFAULT 'Đang xử lý',
+        ket_qua_kiem_tra_lai VARCHAR(100) DEFAULT 'Chưa kiểm tra lại'
+      );
+    `);
+    console.log('Created table hang_loi');
+
+    await pool.query(`
+      CREATE TABLE kho_bao_quan (
+        ma_kho VARCHAR(10) PRIMARY KEY,
+        ten_kho VARCHAR(100) NOT NULL,
+        loai_kho VARCHAR(50) NOT NULL,
+        suc_chua_lon_nhat NUMERIC NOT NULL,
+        suc_chua_con_trong NUMERIC NOT NULL,
+        tinh_trang_ve_sinh VARCHAR(50) DEFAULT 'Chưa đạt',
+        nhiet_do NUMERIC NOT NULL
+      );
+    `);
+    console.log('Created table kho_bao_quan');
+
+    await pool.query(`
       CREATE TABLE truy_xuat_nguon_goc (
         id VARCHAR(10) PRIMARY KEY,
-        ma_puc VARCHAR(50) NOT NULL,
-        dia_chi_vuon TEXT NOT NULL,
-        ten_vuon VARCHAR(100) NOT NULL,
+        ma_puc VARCHAR(50) REFERENCES vung_trong(ma_puc),
         ngay_thu_hoach VARCHAR(10) NOT NULL,
         lan_phun_thuoc_gan_nhat VARCHAR(10) NOT NULL,
         cach_ly VARCHAR(10),
@@ -874,33 +946,139 @@ async function seed() {
     `);
     console.log('Created table truy_xuat_nguon_goc');
 
+    await pool.query(`
+      CREATE TABLE phieu_nhap_kho (
+        ma_phieu VARCHAR(20) PRIMARY KEY,
+        id_lo_hang VARCHAR(10) REFERENCES truy_xuat_nguon_goc(id) ON DELETE CASCADE,
+        ma_kho VARCHAR(10) REFERENCES kho_bao_quan(ma_kho) ON DELETE CASCADE,
+        ngay_nhap VARCHAR(10) NOT NULL,
+        khoi_luong NUMERIC NOT NULL,
+        vi_tri_luu_tru VARCHAR(100)
+      );
+    `);
+    console.log('Created table phieu_nhap_kho');
+
     // Insert customers
     for (const c of customers) {
-      await pool.query('INSERT INTO khach_hang (ma_kh, ten_kh, quoc_gia) VALUES ($1, $2, $3)', [c.ma_kh, c.ten_kh, c.quoc_gia]);
+      await pool.query(
+        'INSERT INTO khach_hang (ma_kh, ten_kh, dia_chi, quoc_gia, sdt, email) VALUES ($1, $2, $3, $4, $5, $6)',
+        [c.ma_kh, c.ten_kh, c.dia_chi, c.quoc_gia, c.sdt, c.email]
+      );
     }
     console.log(`Seeded ${customers.length} customers`);
 
     // Insert personnel
     for (const p of personnel) {
-      await pool.query('INSERT INTO nhan_vien (ma_nv, ten_nv, tuoi, suc_khoe, dang_tap_huan) VALUES ($1, $2, $3, $4, $5)', [p.ma_nv, p.ten_nv, p.tuoi, p.suc_khoe, p.dang_tap_huan]);
+      await pool.query(
+        'INSERT INTO nhan_vien (ma_nv, ten_nv, tuoi, suc_khoe, dang_tap_huan, bo_phan, chuc_vu, sdt, email, vung_trong_phu_trach, kho_phu_trach, kiem_dinh_chat_luong, ket_qua_cong_viec) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)',
+        [p.ma_nv, p.ten_nv, p.tuoi, p.suc_khoe, p.dang_tap_huan, p.bo_phan, p.chuc_vu, p.sdt, p.email, p.vung_trong_phu_trach, p.kho_phu_trach, p.kiem_dinh_chat_luong, p.ket_qua_cong_viec]
+      );
     }
     console.log(`Seeded ${personnel.length} personnel`);
+
+    // Insert warehouses
+    for (const w of warehouses) {
+      await pool.query(
+        'INSERT INTO kho_bao_quan (ma_kho, ten_kho, loai_kho, suc_chua_lon_nhat, suc_chua_con_trong, tinh_trang_ve_sinh, nhiet_do) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [w.ma_kho, w.ten_kho, w.loai_kho, w.suc_chua_lon_nhat, w.suc_chua_con_trong, w.tinh_trang_ve_sinh, w.nhiet_do]
+      );
+    }
+    console.log(`Seeded ${warehouses.length} warehouses`);
+
+    // Collect unique growing areas (vung_trong) from traceability dataset
+    const uniquePucs = {};
+    for (const t of traceability) {
+      if (t.ma_puc && !uniquePucs[t.ma_puc]) {
+        const representativeName = t.ten_vuon.startsWith("Vườn ") ? t.ten_vuon.substring(5) : t.ten_vuon;
+        uniquePucs[t.ma_puc] = {
+          ma_puc: t.ma_puc,
+          ten: representativeName,
+          ten_vuon: t.ten_vuon,
+          dia_chi: t.dia_chi_vuon
+        };
+      }
+    }
+
+    // Insert growing areas
+    const vungTrongList = Object.values(uniquePucs);
+    for (const v of vungTrongList) {
+      await pool.query(
+        'INSERT INTO vung_trong (ma_puc, ten, ten_vuon, dia_chi) VALUES ($1, $2, $3, $4)',
+        [v.ma_puc, v.ten, v.ten_vuon, v.dia_chi]
+      );
+    }
+    console.log(`Seeded ${vungTrongList.length} growing areas (vung_trong)`);
 
     // Insert traceability
     for (const t of traceability) {
       await pool.query(`
         INSERT INTO truy_xuat_nguon_goc (
-          id, ma_puc, dia_chi_vuon, ten_vuon, ngay_thu_hoach, lan_phun_thuoc_gan_nhat,
+          id, ma_puc, ngay_thu_hoach, lan_phun_thuoc_gan_nhat,
           cach_ly, loai, khoi_luong_lo_hang, khoi_luong_dong_goi, noi_xuat_khau,
           ten_co_so_dong_goi, ma_phc, ket_qua_kiem_dich
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       `, [
-        t.id, t.ma_puc, t.dia_chi_vuon, t.ten_vuon, t.ngay_thu_hoach, t.lan_phun_thuoc_gan_nhat,
+        t.id, t.ma_puc, t.ngay_thu_hoach, t.lan_phun_thuoc_gan_nhat,
         t.cach_ly, t.loai, t.khoi_luong_lo_hang, t.khoi_luong_dong_goi, t.noi_xuat_khau,
         t.ten_co_so_dong_goi, t.ma_phc, t.ket_qua_kiem_dich
       ]);
     }
     console.log(`Seeded ${traceability.length} traceability records`);
+
+    // Insert entry receipts (phieu_nhap_kho)
+    let receiptCounter = 1;
+    for (const t of traceability) {
+      if (t.ket_qua_kiem_dich === 'Đạt' && t.khoi_luong_dong_goi !== null && t.khoi_luong_dong_goi !== '') {
+        const maKho = t.id.includes('BG') || t.id.includes('HG') ? 'KHO-01' : 'KHO-02';
+        const harvestDate = new Date(t.ngay_thu_hoach);
+        harvestDate.setDate(harvestDate.getDate() + 1);
+        const entryDate = harvestDate.toISOString().split('T')[0];
+        const viTri = `Khu-${t.id.split('-')[1] || 'A1'}`;
+
+        const maPhieu = `PNK-${String(receiptCounter).padStart(4, '0')}`;
+        await pool.query(
+          'INSERT INTO phieu_nhap_kho (ma_phieu, id_lo_hang, ma_kho, ngay_nhap, khoi_luong, vi_tri_luu_tru) VALUES ($1, $2, $3, $4, $5, $6)',
+          [maPhieu, t.id, maKho, entryDate, parseFloat(t.khoi_luong_dong_goi), viTri]
+        );
+        receiptCounter++;
+      }
+    }
+    console.log(`Seeded ${receiptCounter - 1} storage entry receipts (phieu_nhap_kho)`);
+
+    // Insert mock contracts
+    const mockContracts = [
+      { so_hop_dong: 'HD-2026-001', ten_doi_tac: 'Global Fruit Import Co.', loai_hop_dong: 'Hợp đồng xuất khẩu', gia_tri: '1,250,000,000đ', ngay_ky: '2026-05-01', trang_thai: 'Đang thực hiện', tiens_do_giao_hang: 'Đợt 1: Đã giao 10 tấn ngày 10/05/2026 (Xác nhận); Đợt 2: Dự kiến giao 15 tấn ngày 25/06/2026', vi_pham: 'Không ghi nhận vi phạm', phu_luc: 'Phụ lục số 01: Điều chỉnh tăng khối lượng thêm 5 tấn', tinh_trang_thanh_toan: 'Đợt 1: Đã thanh toán 500tr; Đợt 2: Chưa thanh toán' },
+      { so_hop_dong: 'HD-2026-002', ten_doi_tac: 'HTX Nông nghiệp Cái Bè', loai_hop_dong: 'Hợp đồng thu mua', gia_tri: '850,000,000đ', ngay_ky: '2026-05-10', trang_thai: 'Đang thực hiện', tiens_do_giao_hang: 'Đợt 1: Đã nhận đủ hàng ngày 15/05/2026', vi_pham: 'Không ghi nhận vi phạm', phu_luc: 'Không có phụ lục', tinh_trang_thanh_toan: 'Đã thanh toán 100% (850tr)' },
+      { so_hop_dong: 'HD-2026-003', ten_doi_tac: 'Tokyo Fresh Agro', loai_hop_dong: 'Hợp đồng xuất khẩu', gia_tri: '2,100,000,000đ', ngay_ky: '2026-05-25', trang_thai: 'Đang chuẩn bị', tiens_do_giao_hang: 'Đợt 1: Dự kiến giao 20 tấn ngày 01/07/2026', vi_pham: 'Không ghi nhận vi phạm', phu_luc: 'Không có phụ lục', tinh_trang_thanh_toan: 'Đã nhận đặt cọc 200tr' },
+      { so_hop_dong: 'HD-2026-004', ten_doi_tac: 'Vận tải biển Nam Triệu', loai_hop_dong: 'Hợp đồng nguyên tắc vận chuyển', gia_tri: 'Theo bảng giá năm 2026', ngay_ky: '2026-01-01', trang_thai: 'Đang hiệu lực', tiens_do_giao_hang: 'Thực hiện vận chuyển theo từng chuyến yêu cầu', vi_pham: 'Chậm trễ chuyến xe VC-101 ngày 16/06 (Đã cảnh báo & phạt 5tr)', phu_luc: 'Phụ lục 01: Bổ sung xe lạnh container 15 tấn', tinh_trang_thanh_toan: 'Thanh toán gối đầu theo tháng' }
+    ];
+
+    for (const c of mockContracts) {
+      await pool.query(
+        'INSERT INTO hop_dong (so_hop_dong, ten_doi_tac, loai_hop_dong, gia_tri, ngay_ky, trang_thai, tiens_do_giao_hang, vi_pham, phu_luc, tinh_trang_thanh_toan) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+        [c.so_hop_dong, c.ten_doi_tac, c.loai_hop_dong, c.gia_tri, c.ngay_ky, c.trang_thai, c.tiens_do_giao_hang, c.vi_pham, c.phu_luc, c.tinh_trang_thanh_toan]
+      );
+    }
+    console.log(`Seeded ${mockContracts.length} contract records`);
+
+    // Insert hang_loi records based on traceability logs
+    const errorTypes = ['Tồn đọng dư lượng hóa chất', 'Phát hiện sinh vật KDTV'];
+    const staffNames = ['Lê Hoàng Chi', 'Hoàng Kim Anh'];
+    let errorCounter = 0;
+    for (const t of traceability) {
+      if (t.ket_qua_kiem_dich === 'Không đạt') {
+        const errorType = errorTypes[errorCounter % 2];
+        const staff = staffNames[errorCounter % 2];
+        const maLoi = `LHL-${100 + errorCounter}`;
+        const detectDate = t.ngay_thu_hoach; // detect around harvest time
+        await pool.query(
+          'INSERT INTO hang_loi (ma_loi, id_lo_hang, ma_puc, loai_loi, ngay_phat_hien, nguoi_phu_trach, trang_thai, ket_qua_kiem_tra_lai) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+          [maLoi, t.id, t.ma_puc, errorType, detectDate, staff, 'Đang xử lý', 'Chưa kiểm tra lại']
+        );
+        errorCounter++;
+      }
+    }
+    console.log(`Seeded ${errorCounter} faulty shipment records (hang_loi)`);
 
     console.log('Database seeding completed successfully!');
   } catch (err) {
@@ -914,4 +1092,4 @@ if (require.main === module) {
   seed();
 }
 
-module.exports = { customers, personnel, traceability };
+module.exports = { customers, personnel, traceability, warehouses };
