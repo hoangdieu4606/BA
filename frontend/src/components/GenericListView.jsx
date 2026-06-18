@@ -421,7 +421,7 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
         const rows = (contractsList || []).map(item => ({
           displayValues: [
             item.so_hop_dong,
-            item.ma_kh ? `${item.ma_kh}${item.ten_kh ? ' - ' + item.ten_kh : ''}` : 'Chưa liên kết',
+            item.ma_kh || 'Chưa liên kết',
             item.ten_doi_tac,
             item.loai_hop_dong,
             item.gia_tri,
@@ -698,7 +698,7 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
 
   const handleContractSubmit = (e) => {
     if (e) e.preventDefault();
-    if (!newContract.so_hop_dong || !newContract.ten_doi_tac || !newContract.loai_hop_dong || !newContract.gia_tri || !newContract.ngay_ky) {
+    if (!newContract.so_hop_dong || !newContract.ma_kh || !newContract.ten_doi_tac || !newContract.loai_hop_dong || !newContract.gia_tri || !newContract.ngay_ky) {
       alert("Vui lòng điền đầy đủ các thông tin bắt buộc");
       return;
     }
@@ -707,15 +707,19 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newContract)
     })
-      .then(res => res.json())
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Lỗi khi tạo hợp đồng');
+        }
+        return data;
+      })
       .then(saved => {
         setContractsList(prev => [saved, ...prev]);
         setIsCreatingContract(false);
       })
       .catch(err => {
-        console.error(err);
-        setContractsList(prev => [newContract, ...prev]);
-        setIsCreatingContract(false);
+        alert(err.message);
       });
   };
 
@@ -863,16 +867,20 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editData)
       })
-        .then(res => res.json())
+        .then(async res => {
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || 'Lỗi khi cập nhật hợp đồng');
+          }
+          return data;
+        })
         .then(updated => {
           setContractsList(prev => prev.map(item => item.so_hop_dong === updated.so_hop_dong ? updated : item));
           setSelectedRecord(updated);
           setIsEditing(false);
         })
         .catch(err => {
-          console.error(err);
-          setSelectedRecord(editData);
-          setIsEditing(false);
+          alert(err.message);
         });
       return;
     }
@@ -1521,6 +1529,17 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
                         <label>Tên đối tác hợp đồng*</label>
                         <input type="text" name="ten_doi_tac" value={editData.ten_doi_tac || ''} onChange={handleEditChange} required disabled={role !== 'admin'} />
                       </div>
+                      <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                        <label>Khách hàng liên kết (Mã KH)</label>
+                        <select name="ma_kh" value={editData.ma_kh || ''} onChange={handleEditChange} disabled={role !== 'admin'}>
+                          <option value="">-- Chưa liên kết --</option>
+                          {(customersList || []).map(kh => (
+                            <option key={kh.ma_kh} value={kh.ma_kh}>
+                              {kh.ma_kh} - {kh.ten_kh} ({kh.quoc_gia})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <div className="form-group">
                         <label>Loại hợp đồng*</label>
                         <select name="loai_hop_dong" value={editData.loai_hop_dong || ''} onChange={handleEditChange} required disabled={role !== 'admin'}>
@@ -1572,6 +1591,14 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
                       <tr>
                         <th>Số hợp đồng</th>
                         <td>{selectedRecord.so_hop_dong}</td>
+                      </tr>
+                      <tr>
+                        <th>Mã KH liên kết</th>
+                        <td>{selectedRecord.ma_kh || <span className="empty-value">Chưa liên kết</span>}</td>
+                      </tr>
+                      <tr>
+                        <th>Khách hàng</th>
+                        <td>{selectedRecord.ten_kh ? `${selectedRecord.ten_kh}${selectedRecord.quoc_gia ? ' (' + selectedRecord.quoc_gia + ')' : ''}` : <span className="empty-value">Chưa có thông tin khách hàng</span>}</td>
                       </tr>
                       <tr>
                         <th>Tên đối tác hợp đồng</th>
@@ -2819,13 +2846,14 @@ const GenericListView = ({ activeTab, traceabilityList = [], setTraceabilityList
                     </select>
                   </div>
                   <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label>Khách hàng liên kết (Mã KH)</label>
+                    <label>Khách hàng liên kết (Mã KH)*</label>
                     <select 
                       name="ma_kh" 
                       value={newContract.ma_kh} 
                       onChange={(e) => setNewContract(prev => ({ ...prev, ma_kh: e.target.value }))}
+                      required
                     >
-                      <option value="">-- Chọn khách hàng (tùy chọn) --</option>
+                      <option value="">-- Chọn khách hàng --</option>
                       {(customersList || []).map(kh => (
                         <option key={kh.ma_kh} value={kh.ma_kh}>
                           {kh.ma_kh} - {kh.ten_kh} ({kh.quoc_gia})

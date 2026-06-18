@@ -127,6 +127,40 @@ async function safeQuery(queryText, params) {
   }
 }
 
+async function ensureContractCustomerLinkSchema() {
+  if (useFallbackDb) return;
+
+  await pool.query('ALTER TABLE hop_dong ADD COLUMN IF NOT EXISTS ma_kh VARCHAR(10)');
+  await pool.query(`
+    UPDATE hop_dong
+    SET ma_kh = CASE so_hop_dong
+      WHEN 'HD-2026-001' THEN 'KH001'
+      WHEN 'HD-2026-002' THEN 'KH002'
+      WHEN 'HD-2026-003' THEN 'KH003'
+      WHEN 'HD-2026-004' THEN 'KH004'
+      ELSE ma_kh
+    END
+    WHERE ma_kh IS NULL
+  `);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'hop_dong_ma_kh_fkey'
+      ) THEN
+        ALTER TABLE hop_dong
+        ADD CONSTRAINT hop_dong_ma_kh_fkey
+        FOREIGN KEY (ma_kh)
+        REFERENCES khach_hang(ma_kh)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL;
+      END IF;
+    END $$;
+  `);
+}
+
 // Get all traceability logs (joined with vung_trong details)
 app.get('/api/traceability', async (req, res) => {
   try {
@@ -738,6 +772,7 @@ app.put('/api/receipts/:ma_phieu', async (req, res) => {
 // Get all contracts (FR12) - join with khach_hang to get customer info
 app.get('/api/contracts', async (req, res) => {
   try {
+    await ensureContractCustomerLinkSchema();
     const result = await safeQuery(`
       SELECT h.*, k.ten_kh, k.quoc_gia, k.email AS kh_email
       FROM hop_dong h
@@ -761,18 +796,29 @@ app.post('/api/contracts', async (req, res) => {
   if (!so_hop_dong || !ten_doi_tac || !loai_hop_dong || !gia_tri || !ngay_ky || !trang_thai) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
+  if (!ma_kh) {
+    return res.status(400).json({ error: 'Missing required field: ma_kh' });
+  }
 
   try {
+    await ensureContractCustomerLinkSchema();
+    const customerResult = await safeQuery('SELECT ten_kh, quoc_gia, email AS kh_email FROM khach_hang WHERE ma_kh = $1', [ma_kh]);
+    if (customerResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Mã KH không tồn tại trong danh sách khách hàng' });
+    }
     const result = await safeQuery(
       `INSERT INTO hop_dong (so_hop_dong, ma_kh, ten_doi_tac, loai_hop_dong, gia_tri, ngay_ky, trang_thai, tiens_do_giao_hang, vi_pham, phu_luc, tinh_trang_thanh_toan) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
       [so_hop_dong, ma_kh || null, ten_doi_tac, loai_hop_dong, gia_tri, ngay_ky, trang_thai, tiens_do_giao_hang || '', vi_pham || 'Không ghi nhận vi phạm', phu_luc || 'Không có phụ lục', tinh_trang_thanh_toan || '']
     );
     const saved = result.rows[0];
-    const kh = (dbFallback.customers || []).find(x => x.ma_kh === ma_kh) || {};
+    const kh = customerResult.rows[0];
     res.status(201).json({ ...saved, ten_kh: kh.ten_kh || null, quoc_gia: kh.quoc_gia || null });
   } catch (err) {
     const kh = (dbFallback.customers || []).find(x => x.ma_kh === ma_kh) || {};
+    if (!kh.ma_kh) {
+      return res.status(400).json({ error: 'Mã KH không tồn tại trong danh sách khách hàng' });
+    }
     const newContract = { so_hop_dong, ma_kh: ma_kh || null, ten_doi_tac, loai_hop_dong, gia_tri, ngay_ky, trang_thai, tiens_do_giao_hang, vi_pham, phu_luc, tinh_trang_thanh_toan, ten_kh: kh.ten_kh || null, quoc_gia: kh.quoc_gia || null };
     dbFallback.contracts.push(newContract);
     res.status(201).json(newContract);
@@ -785,6 +831,15 @@ app.put('/api/contracts/:so_hop_dong', async (req, res) => {
   const { ma_kh, ten_doi_tac, loai_hop_dong, gia_tri, ngay_ky, trang_thai, tiens_do_giao_hang, vi_pham, phu_luc, tinh_trang_thanh_toan } = req.body;
 
   try {
+    await ensureContractCustomerLinkSchema();
+    let kh = {};
+    if (ma_kh) {
+      const customerResult = await safeQuery('SELECT ten_kh, quoc_gia, email AS kh_email FROM khach_hang WHERE ma_kh = $1', [ma_kh]);
+      if (customerResult.rows.length === 0) {
+        return res.status(400).json({ error: 'Mã KH không tồn tại trong danh sách khách hàng' });
+      }
+      kh = customerResult.rows[0];
+    }
     await safeQuery(
       `UPDATE hop_dong SET 
         ma_kh = $1, ten_doi_tac = $2, loai_hop_dong = $3, gia_tri = $4, ngay_ky = $5, trang_thai = $6,
@@ -792,10 +847,12 @@ app.put('/api/contracts/:so_hop_dong', async (req, res) => {
        WHERE so_hop_dong = $11`,
       [ma_kh || null, ten_doi_tac, loai_hop_dong, gia_tri, ngay_ky, trang_thai, tiens_do_giao_hang, vi_pham, phu_luc, tinh_trang_thanh_toan, so_hop_dong]
     );
-    const kh = (dbFallback.customers || []).find(x => x.ma_kh === ma_kh) || {};
     res.json({ so_hop_dong, ma_kh: ma_kh || null, ten_doi_tac, loai_hop_dong, gia_tri, ngay_ky, trang_thai, tiens_do_giao_hang, vi_pham, phu_luc, tinh_trang_thanh_toan, ten_kh: kh.ten_kh || null, quoc_gia: kh.quoc_gia || null });
   } catch (err) {
     const kh = (dbFallback.customers || []).find(x => x.ma_kh === ma_kh) || {};
+    if (ma_kh && !kh.ma_kh) {
+      return res.status(400).json({ error: 'Mã KH không tồn tại trong danh sách khách hàng' });
+    }
     const idx = dbFallback.contracts.findIndex(c => c.so_hop_dong === so_hop_dong);
     if (idx !== -1) {
       dbFallback.contracts[idx] = { ...dbFallback.contracts[idx], ma_kh: ma_kh || null, ten_doi_tac, loai_hop_dong, gia_tri, ngay_ky, trang_thai, tiens_do_giao_hang, vi_pham, phu_luc, tinh_trang_thanh_toan, ten_kh: kh.ten_kh || null, quoc_gia: kh.quoc_gia || null };

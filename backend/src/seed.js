@@ -846,8 +846,21 @@ async function seed() {
 
     // Create tables
     await pool.query(`
+      CREATE TABLE khach_hang (
+        ma_kh VARCHAR(10) PRIMARY KEY,
+        ten_kh VARCHAR(100) NOT NULL,
+        dia_chi TEXT,
+        quoc_gia VARCHAR(50) NOT NULL,
+        sdt VARCHAR(20),
+        email VARCHAR(100)
+      );
+    `);
+    console.log('Created table khach_hang');
+
+    await pool.query(`
       CREATE TABLE hop_dong (
         so_hop_dong VARCHAR(50) PRIMARY KEY,
+        ma_kh VARCHAR(10) REFERENCES khach_hang(ma_kh) ON UPDATE CASCADE ON DELETE SET NULL,
         ten_doi_tac VARCHAR(100) NOT NULL,
         loai_hop_dong VARCHAR(50) NOT NULL,
         gia_tri VARCHAR(50) NOT NULL,
@@ -860,17 +873,6 @@ async function seed() {
       );
     `);
     console.log('Created table hop_dong');
-    await pool.query(`
-      CREATE TABLE khach_hang (
-        ma_kh VARCHAR(10) PRIMARY KEY,
-        ten_kh VARCHAR(100) NOT NULL,
-        dia_chi TEXT,
-        quoc_gia VARCHAR(50) NOT NULL,
-        sdt VARCHAR(20),
-        email VARCHAR(100)
-      );
-    `);
-    console.log('Created table khach_hang');
 
     await pool.query(`
       CREATE TABLE nhan_vien (
@@ -1047,16 +1049,16 @@ async function seed() {
 
     // Insert mock contracts
     const mockContracts = [
-      { so_hop_dong: 'HD-2026-001', ten_doi_tac: 'Global Fruit Import Co.', loai_hop_dong: 'Hợp đồng xuất khẩu', gia_tri: '1,250,000,000đ', ngay_ky: '2026-05-01', trang_thai: 'Đang thực hiện', tiens_do_giao_hang: 'Đợt 1: Đã giao 10 tấn ngày 10/05/2026 (Xác nhận); Đợt 2: Dự kiến giao 15 tấn ngày 25/06/2026', vi_pham: 'Không ghi nhận vi phạm', phu_luc: 'Phụ lục số 01: Điều chỉnh tăng khối lượng thêm 5 tấn', tinh_trang_thanh_toan: 'Đợt 1: Đã thanh toán 500tr; Đợt 2: Chưa thanh toán' },
-      { so_hop_dong: 'HD-2026-002', ten_doi_tac: 'HTX Nông nghiệp Cái Bè', loai_hop_dong: 'Hợp đồng thu mua', gia_tri: '850,000,000đ', ngay_ky: '2026-05-10', trang_thai: 'Đang thực hiện', tiens_do_giao_hang: 'Đợt 1: Đã nhận đủ hàng ngày 15/05/2026', vi_pham: 'Không ghi nhận vi phạm', phu_luc: 'Không có phụ lục', tinh_trang_thanh_toan: 'Đã thanh toán 100% (850tr)' },
-      { so_hop_dong: 'HD-2026-003', ten_doi_tac: 'Tokyo Fresh Agro', loai_hop_dong: 'Hợp đồng xuất khẩu', gia_tri: '2,100,000,000đ', ngay_ky: '2026-05-25', trang_thai: 'Đang chuẩn bị', tiens_do_giao_hang: 'Đợt 1: Dự kiến giao 20 tấn ngày 01/07/2026', vi_pham: 'Không ghi nhận vi phạm', phu_luc: 'Không có phụ lục', tinh_trang_thanh_toan: 'Đã nhận đặt cọc 200tr' },
-      { so_hop_dong: 'HD-2026-004', ten_doi_tac: 'Vận tải biển Nam Triệu', loai_hop_dong: 'Hợp đồng nguyên tắc vận chuyển', gia_tri: 'Theo bảng giá năm 2026', ngay_ky: '2026-01-01', trang_thai: 'Đang hiệu lực', tiens_do_giao_hang: 'Thực hiện vận chuyển theo từng chuyến yêu cầu', vi_pham: 'Chậm trễ chuyến xe VC-101 ngày 16/06 (Đã cảnh báo & phạt 5tr)', phu_luc: 'Phụ lục 01: Bổ sung xe lạnh container 15 tấn', tinh_trang_thanh_toan: 'Thanh toán gối đầu theo tháng' }
+      { so_hop_dong: 'HD-2026-001', ma_kh: 'KH001', ten_doi_tac: 'Global Fruit Import Co.', loai_hop_dong: 'Hợp đồng xuất khẩu', gia_tri: '1,250,000,000đ', ngay_ky: '2026-05-01', trang_thai: 'Đang thực hiện', tiens_do_giao_hang: 'Đợt 1: Đã giao 10 tấn ngày 10/05/2026 (Xác nhận); Đợt 2: Dự kiến giao 15 tấn ngày 25/06/2026', vi_pham: 'Không ghi nhận vi phạm', phu_luc: 'Phụ lục số 01: Điều chỉnh tăng khối lượng thêm 5 tấn', tinh_trang_thanh_toan: 'Đợt 1: Đã thanh toán 500tr; Đợt 2: Chưa thanh toán' },
+      { so_hop_dong: 'HD-2026-002', ma_kh: 'KH002', ten_doi_tac: 'HTX Nông nghiệp Cái Bè', loai_hop_dong: 'Hợp đồng thu mua', gia_tri: '850,000,000đ', ngay_ky: '2026-05-10', trang_thai: 'Đang thực hiện', tiens_do_giao_hang: 'Đợt 1: Đã nhận đủ hàng ngày 15/05/2026', vi_pham: 'Không ghi nhận vi phạm', phu_luc: 'Không có phụ lục', tinh_trang_thanh_toan: 'Đã thanh toán 100% (850tr)' },
+      { so_hop_dong: 'HD-2026-003', ma_kh: 'KH003', ten_doi_tac: 'Tokyo Fresh Agro', loai_hop_dong: 'Hợp đồng xuất khẩu', gia_tri: '2,100,000,000đ', ngay_ky: '2026-05-25', trang_thai: 'Đang chuẩn bị', tiens_do_giao_hang: 'Đợt 1: Dự kiến giao 20 tấn ngày 01/07/2026', vi_pham: 'Không ghi nhận vi phạm', phu_luc: 'Không có phụ lục', tinh_trang_thanh_toan: 'Đã nhận đặt cọc 200tr' },
+      { so_hop_dong: 'HD-2026-004', ma_kh: 'KH004', ten_doi_tac: 'Vận tải biển Nam Triệu', loai_hop_dong: 'Hợp đồng nguyên tắc vận chuyển', gia_tri: 'Theo bảng giá năm 2026', ngay_ky: '2026-01-01', trang_thai: 'Đang hiệu lực', tiens_do_giao_hang: 'Thực hiện vận chuyển theo từng chuyến yêu cầu', vi_pham: 'Chậm trễ chuyến xe VC-101 ngày 16/06 (Đã cảnh báo & phạt 5tr)', phu_luc: 'Phụ lục 01: Bổ sung xe lạnh container 15 tấn', tinh_trang_thanh_toan: 'Thanh toán gối đầu theo tháng' }
     ];
 
     for (const c of mockContracts) {
       await pool.query(
-        'INSERT INTO hop_dong (so_hop_dong, ten_doi_tac, loai_hop_dong, gia_tri, ngay_ky, trang_thai, tiens_do_giao_hang, vi_pham, phu_luc, tinh_trang_thanh_toan) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
-        [c.so_hop_dong, c.ten_doi_tac, c.loai_hop_dong, c.gia_tri, c.ngay_ky, c.trang_thai, c.tiens_do_giao_hang, c.vi_pham, c.phu_luc, c.tinh_trang_thanh_toan]
+        'INSERT INTO hop_dong (so_hop_dong, ma_kh, ten_doi_tac, loai_hop_dong, gia_tri, ngay_ky, trang_thai, tiens_do_giao_hang, vi_pham, phu_luc, tinh_trang_thanh_toan) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)',
+        [c.so_hop_dong, c.ma_kh, c.ten_doi_tac, c.loai_hop_dong, c.gia_tri, c.ngay_ky, c.trang_thai, c.tiens_do_giao_hang, c.vi_pham, c.phu_luc, c.tinh_trang_thanh_toan]
       );
     }
     console.log(`Seeded ${mockContracts.length} contract records`);
