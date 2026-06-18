@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const { pool } = require('./config/db');
 require('dotenv').config();
 
@@ -112,6 +114,7 @@ let dbFallback = {
 
 // Flag to track database health
 let useFallbackDb = false;
+let databaseSchemaOptimized = false;
 
 // Helper function to query the DB with safety fallback
 async function safeQuery(queryText, params) {
@@ -128,37 +131,12 @@ async function safeQuery(queryText, params) {
 }
 
 async function ensureContractCustomerLinkSchema() {
-  if (useFallbackDb) return;
+  if (useFallbackDb || databaseSchemaOptimized) return;
 
-  await pool.query('ALTER TABLE hop_dong ADD COLUMN IF NOT EXISTS ma_kh VARCHAR(10)');
-  await pool.query(`
-    UPDATE hop_dong
-    SET ma_kh = CASE so_hop_dong
-      WHEN 'HD-2026-001' THEN 'KH001'
-      WHEN 'HD-2026-002' THEN 'KH002'
-      WHEN 'HD-2026-003' THEN 'KH003'
-      WHEN 'HD-2026-004' THEN 'KH004'
-      ELSE ma_kh
-    END
-    WHERE ma_kh IS NULL
-  `);
-  await pool.query(`
-    DO $$
-    BEGIN
-      IF NOT EXISTS (
-        SELECT 1
-        FROM pg_constraint
-        WHERE conname = 'hop_dong_ma_kh_fkey'
-      ) THEN
-        ALTER TABLE hop_dong
-        ADD CONSTRAINT hop_dong_ma_kh_fkey
-        FOREIGN KEY (ma_kh)
-        REFERENCES khach_hang(ma_kh)
-        ON UPDATE CASCADE
-        ON DELETE SET NULL;
-      END IF;
-    END $$;
-  `);
+  const migrationPath = path.join(__dirname, '..', 'db', 'optimize_schema.sql');
+  const migrationSql = fs.readFileSync(migrationPath, 'utf8');
+  await pool.query(migrationSql);
+  databaseSchemaOptimized = true;
 }
 
 // Get all traceability logs (joined with vung_trong details)
@@ -953,7 +931,6 @@ app.delete('/api/receipts/:ma_phieu', async (req, res) => {
 });
 
 // Serve static built frontend assets in production
-const path = require('path');
 app.use(express.static(path.join(__dirname, '../../frontend/dist')));
 
 // Return frontend index.html for non-API route hits (supporting browser history routers)

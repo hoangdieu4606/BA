@@ -1,4 +1,6 @@
 const { pool } = require('./config/db');
+const fs = require('fs');
+const path = require('path');
 
 const customers = [
   { ma_kh: "KH001", ten_kh: "Guangzhou Fruit Import & Export Co., Ltd.", quoc_gia: "Trung Quốc", dia_chi: "No. 88, Fruit Market St, Guangzhou", sdt: "+86-20-12345678", email: "contact@guangzhoufruit.com" },
@@ -834,131 +836,10 @@ async function seed() {
   try {
     console.log('Starting seed process...');
 
-    // Drop tables if they exist
-    await pool.query('DROP TABLE IF EXISTS phieu_nhap_kho;');
-    await pool.query('DROP TABLE IF EXISTS kho_bao_quan;');
-    await pool.query('DROP TABLE IF EXISTS hop_dong;');
-    await pool.query('DROP TABLE IF EXISTS hang_loi;');
-    await pool.query('DROP TABLE IF EXISTS truy_xuat_nguon_goc;');
-    await pool.query('DROP TABLE IF EXISTS vung_trong;');
-    await pool.query('DROP TABLE IF EXISTS nhan_vien;');
-    await pool.query('DROP TABLE IF EXISTS khach_hang;');
-
-    // Create tables
-    await pool.query(`
-      CREATE TABLE khach_hang (
-        ma_kh VARCHAR(10) PRIMARY KEY,
-        ten_kh VARCHAR(100) NOT NULL,
-        dia_chi TEXT,
-        quoc_gia VARCHAR(50) NOT NULL,
-        sdt VARCHAR(20),
-        email VARCHAR(100)
-      );
-    `);
-    console.log('Created table khach_hang');
-
-    await pool.query(`
-      CREATE TABLE hop_dong (
-        so_hop_dong VARCHAR(50) PRIMARY KEY,
-        ma_kh VARCHAR(10) REFERENCES khach_hang(ma_kh) ON UPDATE CASCADE ON DELETE SET NULL,
-        ten_doi_tac VARCHAR(100) NOT NULL,
-        loai_hop_dong VARCHAR(50) NOT NULL,
-        gia_tri VARCHAR(50) NOT NULL,
-        ngay_ky VARCHAR(10) NOT NULL,
-        trang_thai VARCHAR(50) NOT NULL,
-        tiens_do_giao_hang TEXT,
-        vi_pham TEXT,
-        phu_luc TEXT,
-        tinh_trang_thanh_toan TEXT
-      );
-    `);
-    console.log('Created table hop_dong');
-
-    await pool.query(`
-      CREATE TABLE nhan_vien (
-        ma_nv VARCHAR(10) PRIMARY KEY,
-        ten_nv VARCHAR(100) NOT NULL,
-        tuoi INT,
-        suc_khoe VARCHAR(100),
-        dang_tap_huan VARCHAR(10),
-        bo_phan VARCHAR(100),
-        chuc_vu VARCHAR(100),
-        sdt VARCHAR(20),
-        email VARCHAR(100),
-        vung_trong_phu_trach VARCHAR(50),
-        kho_phu_trach VARCHAR(50),
-        kiem_dinh_chat_luong VARCHAR(100),
-        ket_qua_cong_viec TEXT
-      );
-    `);
-    console.log('Created table nhan_vien');
-
-    await pool.query(`
-      CREATE TABLE vung_trong (
-        ma_puc VARCHAR(50) PRIMARY KEY,
-        ten VARCHAR(100) NOT NULL,
-        ten_vuon VARCHAR(100) NOT NULL,
-        dia_chi TEXT NOT NULL
-      );
-    `);
-    console.log('Created table vung_trong');
-
-    await pool.query(`
-      CREATE TABLE hang_loi (
-        ma_loi VARCHAR(20) PRIMARY KEY,
-        id_lo_hang VARCHAR(10) REFERENCES truy_xuat_nguon_goc(id) ON DELETE CASCADE,
-        ma_puc VARCHAR(50) REFERENCES vung_trong(ma_puc) ON DELETE CASCADE,
-        loai_loi VARCHAR(100) NOT NULL,
-        ngay_phat_hien VARCHAR(10) NOT NULL,
-        nguoi_phu_trach VARCHAR(100) NOT NULL,
-        trang_thai VARCHAR(50) DEFAULT 'Đang xử lý',
-        ket_qua_kiem_tra_lai VARCHAR(100) DEFAULT 'Chưa kiểm tra lại'
-      );
-    `);
-    console.log('Created table hang_loi');
-
-    await pool.query(`
-      CREATE TABLE kho_bao_quan (
-        ma_kho VARCHAR(10) PRIMARY KEY,
-        ten_kho VARCHAR(100) NOT NULL,
-        loai_kho VARCHAR(50) NOT NULL,
-        suc_chua_lon_nhat NUMERIC NOT NULL,
-        suc_chua_con_trong NUMERIC NOT NULL,
-        tinh_trang_ve_sinh VARCHAR(50) DEFAULT 'Chưa đạt',
-        nhiet_do NUMERIC NOT NULL
-      );
-    `);
-    console.log('Created table kho_bao_quan');
-
-    await pool.query(`
-      CREATE TABLE truy_xuat_nguon_goc (
-        id VARCHAR(10) PRIMARY KEY,
-        ma_puc VARCHAR(50) REFERENCES vung_trong(ma_puc),
-        ngay_thu_hoach VARCHAR(10) NOT NULL,
-        lan_phun_thuoc_gan_nhat VARCHAR(10) NOT NULL,
-        cach_ly VARCHAR(10),
-        loai VARCHAR(50),
-        khoi_luong_lo_hang NUMERIC,
-        khoi_luong_dong_goi NUMERIC,
-        noi_xuat_khau VARCHAR(100),
-        ten_co_so_dong_goi VARCHAR(100),
-        ma_phc VARCHAR(50),
-        ket_qua_kiem_dich VARCHAR(50)
-      );
-    `);
-    console.log('Created table truy_xuat_nguon_goc');
-
-    await pool.query(`
-      CREATE TABLE phieu_nhap_kho (
-        ma_phieu VARCHAR(20) PRIMARY KEY,
-        id_lo_hang VARCHAR(10) REFERENCES truy_xuat_nguon_goc(id) ON DELETE CASCADE,
-        ma_kho VARCHAR(10) REFERENCES kho_bao_quan(ma_kho) ON DELETE CASCADE,
-        ngay_nhap VARCHAR(10) NOT NULL,
-        khoi_luong NUMERIC NOT NULL,
-        vi_tri_luu_tru VARCHAR(100)
-      );
-    `);
-    console.log('Created table phieu_nhap_kho');
+    const schemaPath = path.join(__dirname, '..', 'db', 'schema.sql');
+    const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+    await pool.query(schemaSql);
+    console.log('Created database schema from backend/db/schema.sql');
 
     // Insert customers
     for (const c of customers) {
@@ -1010,6 +891,32 @@ async function seed() {
       );
     }
     console.log(`Seeded ${vungTrongList.length} growing areas (vung_trong)`);
+
+    let personnelAreaLinks = 0;
+    let personnelWarehouseLinks = 0;
+    for (const p of personnel) {
+      if (p.vung_trong_phu_trach && p.vung_trong_phu_trach !== 'Chưa phân công') {
+        const areaExists = vungTrongList.some(v => v.ma_puc === p.vung_trong_phu_trach);
+        if (areaExists) {
+          await pool.query(
+            'INSERT INTO nhan_vien_vung_trong (ma_nv, ma_puc, vai_tro) VALUES ($1, $2, $3) ON CONFLICT (ma_nv, ma_puc) DO NOTHING',
+            [p.ma_nv, p.vung_trong_phu_trach, p.chuc_vu]
+          );
+          personnelAreaLinks++;
+        }
+      }
+      if (p.kho_phu_trach && p.kho_phu_trach !== 'Chưa phân công') {
+        const warehouseExists = warehouses.some(w => w.ma_kho === p.kho_phu_trach);
+        if (warehouseExists) {
+          await pool.query(
+            'INSERT INTO nhan_vien_kho (ma_nv, ma_kho, vai_tro) VALUES ($1, $2, $3) ON CONFLICT (ma_nv, ma_kho) DO NOTHING',
+            [p.ma_nv, p.kho_phu_trach, p.chuc_vu]
+          );
+          personnelWarehouseLinks++;
+        }
+      }
+    }
+    console.log(`Seeded ${personnelAreaLinks} personnel-area links and ${personnelWarehouseLinks} personnel-warehouse links`);
 
     // Insert traceability
     for (const t of traceability) {
